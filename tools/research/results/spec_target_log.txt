@@ -1,0 +1,492 @@
+[vault] weight codec huffman4
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 01:37:37 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=1949
+[vault] dir=C:\Users\1fred\Desktop\AI\JEPA\_stage_memory\vault3 streams=37 layer_blob_MB(min/max/avg)=134.6/140.6/135.2 embed_or_lm_blob_MB=520.4 total_layer_MB=4868
+[model] hidden=2560 inter=9728 layers=36 heads=32 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=1 rope_theta=5000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x135MB sector=4096 prefill_batch=32 ctx=1024 kv_cache_MB=302
+[resident] requested_MB=4500 pinned_streams=30 pinned_MB=4445 lm_head_pinned=1 streamed_MB_per_token=944
+[init] startup_s=1.72
+[gen 1] begin prompt_tokens=19 pos_before=0 max_new=48 temp=0.00 top_p=1.00 top_k=1 ram_avail_MB=1949
+[prefill] g=1 call=1 tokens=19 logits=1 total_ms=1255.3 wait_ms=0.0 read_ms=405.5 comp_ms=1250.4 attn_ms=65.5
+[stream] prefill1 s=0 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=40.6
+[stream] prefill1 s=1 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=32.8
+[stream] prefill1 s=2 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=31.3
+[stream] prefill1 s=3 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=39.1
+[stream] prefill1 s=4 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=31.3
+[stream] prefill1 s=5 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=37.0
+[stream] prefill1 s=6 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=31.0
+[stream] prefill1 s=7 kind=layer MB=134.7 read_ms=56.9 read_MBps=2366 wait_ms=0.0 comp_ms=36.7
+[stream] prefill1 s=8 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=35.1
+[stream] prefill1 s=9 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=31.6
+[stream] prefill1 s=10 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=32.8
+[stream] prefill1 s=11 kind=layer MB=134.8 read_ms=60.9 read_MBps=2214 wait_ms=0.0 comp_ms=33.3
+[stream] prefill1 s=12 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=32.2
+[stream] prefill1 s=13 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=31.4
+[stream] prefill1 s=14 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=31.4
+[stream] prefill1 s=15 kind=layer MB=135.0 read_ms=51.5 read_MBps=2622 wait_ms=0.0 comp_ms=32.6
+[stream] prefill1 s=16 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=37.1
+[stream] prefill1 s=17 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=31.3
+[stream] prefill1 s=18 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=31.7
+[stream] prefill1 s=19 kind=layer MB=135.1 read_ms=69.3 read_MBps=1948 wait_ms=0.0 comp_ms=37.2
+[stream] prefill1 s=20 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=36.7
+[stream] prefill1 s=21 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=33.1
+[stream] prefill1 s=22 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=32.1
+[stream] prefill1 s=23 kind=layer MB=135.0 read_ms=54.2 read_MBps=2489 wait_ms=0.0 comp_ms=38.4
+[stream] prefill1 s=24 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=35.5
+[stream] prefill1 s=25 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=33.1
+[stream] prefill1 s=26 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=32.8
+[stream] prefill1 s=27 kind=layer MB=134.7 read_ms=57.7 read_MBps=2334 wait_ms=0.0 comp_ms=33.4
+[stream] prefill1 s=28 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=33.6
+[stream] prefill1 s=29 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=33.5
+[stream] prefill1 s=30 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=35.8
+[stream] prefill1 s=31 kind=layer MB=134.7 read_ms=54.9 read_MBps=2454 wait_ms=0.0 comp_ms=34.5
+[stream] prefill1 s=32 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=33.7
+[stream] prefill1 s=33 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=31.7
+[stream] prefill1 s=34 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=31.7
+[stream] prefill1 s=35 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=33.3
+[stream] prefill1 s=36 kind=lm_head MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=30.1
+[tok] g=1 i=1 pos=20 total_ms=501.8 wait_ms=58.5 read_ms=396.4 read_MBps=2381 comp_ms=442.4 attn_ms=4.2 lm_ms=30.9 embed_ms=0.44 sample_ms=0.08
+[stream] decode s=0 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=9.4
+[stream] decode s=1 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=10.0
+[stream] decode s=2 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=9.7
+[stream] decode s=3 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=9.5
+[stream] decode s=4 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=9.2
+[stream] decode s=5 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=9.4
+[stream] decode s=6 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=9.1
+[stream] decode s=7 kind=layer MB=134.7 read_ms=59.5 read_MBps=2263 wait_ms=0.0 comp_ms=10.8
+[stream] decode s=8 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.4
+[stream] decode s=9 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.3
+[stream] decode s=10 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=10.9
+[stream] decode s=11 kind=layer MB=134.8 read_ms=58.2 read_MBps=2318 wait_ms=13.9 comp_ms=11.9
+[stream] decode s=12 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.5
+[stream] decode s=13 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.6
+[stream] decode s=14 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.4
+[stream] decode s=15 kind=layer MB=135.0 read_ms=52.8 read_MBps=2554 wait_ms=6.5 comp_ms=11.9
+[stream] decode s=16 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=10.9
+[stream] decode s=17 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=10.8
+[stream] decode s=18 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.4
+[stream] decode s=19 kind=layer MB=135.1 read_ms=57.4 read_MBps=2352 wait_ms=12.6 comp_ms=11.5
+[stream] decode s=20 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.8
+[stream] decode s=21 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.3
+[stream] decode s=22 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.5
+[stream] decode s=23 kind=layer MB=135.0 read_ms=53.6 read_MBps=2521 wait_ms=7.5 comp_ms=12.0
+[stream] decode s=24 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.0
+[stream] decode s=25 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=12.2
+[stream] decode s=26 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.1
+[stream] decode s=27 kind=layer MB=134.7 read_ms=52.7 read_MBps=2554 wait_ms=6.6 comp_ms=11.9
+[stream] decode s=28 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=12.0
+[stream] decode s=29 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=13.8
+[stream] decode s=30 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=13.4
+[stream] decode s=31 kind=layer MB=134.7 read_ms=62.2 read_MBps=2167 wait_ms=11.2 comp_ms=13.1
+[stream] decode s=32 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=12.9
+[stream] decode s=33 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=12.0
+[stream] decode s=34 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=15.4
+[stream] decode s=35 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=12.5
+[stream] decode s=36 kind=lm_head MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=30.9
+[tok] g=1 i=2 pos=21 total_ms=503.0 wait_ms=61.5 read_ms=440.2 read_MBps=2144 comp_ms=441.0 attn_ms=3.8 lm_ms=31.4 embed_ms=0.04 sample_ms=0.08
+[stream] decode s=0 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=10.1
+[stream] decode s=1 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=10.5
+[stream] decode s=2 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=10.3
+[stream] decode s=3 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=9.8
+[stream] decode s=4 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=9.7
+[stream] decode s=5 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=9.9
+[stream] decode s=6 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=9.6
+[stream] decode s=7 kind=layer MB=134.7 read_ms=95.7 read_MBps=1406 wait_ms=0.0 comp_ms=10.7
+[stream] decode s=8 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.9
+[stream] decode s=9 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=12.4
+[stream] decode s=10 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.8
+[stream] decode s=11 kind=layer MB=134.8 read_ms=61.8 read_MBps=2180 wait_ms=15.2 comp_ms=11.6
+[stream] decode s=12 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=12.5
+[stream] decode s=13 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=12.3
+[stream] decode s=14 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.8
+[stream] decode s=15 kind=layer MB=135.0 read_ms=55.1 read_MBps=2451 wait_ms=7.1 comp_ms=11.5
+[stream] decode s=16 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.5
+[stream] decode s=17 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=12.3
+[stream] decode s=18 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.7
+[stream] decode s=19 kind=layer MB=135.1 read_ms=57.9 read_MBps=2333 wait_ms=11.1 comp_ms=13.0
+[stream] decode s=20 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.4
+[stream] decode s=21 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.5
+[stream] decode s=22 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=12.4
+[stream] decode s=23 kind=layer MB=135.0 read_ms=58.8 read_MBps=2298 wait_ms=10.6 comp_ms=12.0
+[stream] decode s=24 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.7
+[stream] decode s=25 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.5
+[stream] decode s=26 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.7
+[stream] decode s=27 kind=layer MB=134.7 read_ms=53.3 read_MBps=2527 wait_ms=6.5 comp_ms=11.8
+[stream] decode s=28 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.1
+[stream] decode s=29 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=12.6
+[stream] decode s=30 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.3
+[stream] decode s=31 kind=layer MB=134.7 read_ms=57.6 read_MBps=2339 wait_ms=11.0 comp_ms=11.8
+[stream] decode s=32 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.1
+[stream] decode s=33 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=10.6
+[stream] decode s=34 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=11.5
+[stream] decode s=35 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=10.9
+[stream] decode s=36 kind=lm_head MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=31.4
+[tok] g=1 i=3 pos=22 total_ms=509.5 wait_ms=57.6 read_ms=401.9 read_MBps=2349 comp_ms=450.7 attn_ms=3.6 lm_ms=31.5 embed_ms=0.75 sample_ms=0.11
+[tok] g=1 i=4 pos=23 total_ms=511.4 wait_ms=71.9 read_ms=409.6 read_MBps=2304 comp_ms=439.0 attn_ms=3.9 lm_ms=31.3 embed_ms=0.04 sample_ms=0.08
+[tok] g=1 i=5 pos=24 total_ms=534.8 wait_ms=50.1 read_ms=425.2 read_MBps=2220 comp_ms=483.6 attn_ms=3.7 lm_ms=36.3 embed_ms=0.48 sample_ms=0.17
+[tok] g=1 i=6 pos=25 total_ms=532.7 wait_ms=50.3 read_ms=419.6 read_MBps=2250 comp_ms=475.7 attn_ms=3.8 lm_ms=33.0 embed_ms=6.21 sample_ms=0.07
+[tok] g=1 i=7 pos=26 total_ms=510.5 wait_ms=48.0 read_ms=400.7 read_MBps=2356 comp_ms=461.4 attn_ms=3.9 lm_ms=31.6 embed_ms=0.65 sample_ms=0.09
+[tok] g=1 i=8 pos=27 total_ms=497.5 wait_ms=62.3 read_ms=400.0 read_MBps=2360 comp_ms=434.3 attn_ms=3.7 lm_ms=31.2 embed_ms=0.43 sample_ms=0.08
+[tok] g=1 i=9 pos=28 total_ms=492.1 wait_ms=59.6 read_ms=395.7 read_MBps=2385 comp_ms=431.5 attn_ms=3.7 lm_ms=29.7 embed_ms=0.50 sample_ms=0.08
+[tok] g=1 i=10 pos=29 total_ms=486.6 wait_ms=63.4 read_ms=395.1 read_MBps=2389 comp_ms=422.3 attn_ms=3.6 lm_ms=30.6 embed_ms=0.43 sample_ms=0.08
+[tok] g=1 i=11 pos=30 total_ms=492.5 wait_ms=60.0 read_ms=398.1 read_MBps=2371 comp_ms=431.5 attn_ms=3.7 lm_ms=31.6 embed_ms=0.49 sample_ms=0.08
+[tok] g=1 i=12 pos=31 total_ms=488.4 wait_ms=62.1 read_ms=390.5 read_MBps=2417 comp_ms=425.4 attn_ms=3.6 lm_ms=29.7 embed_ms=0.43 sample_ms=0.08
+[tok] g=1 i=13 pos=32 total_ms=490.3 wait_ms=61.9 read_ms=390.8 read_MBps=2416 comp_ms=427.5 attn_ms=3.8 lm_ms=31.2 embed_ms=0.43 sample_ms=0.08
+[tok] g=1 i=14 pos=33 total_ms=487.5 wait_ms=52.7 read_ms=410.5 read_MBps=2299 comp_ms=434.3 attn_ms=4.4 lm_ms=30.7 embed_ms=0.05 sample_ms=0.08
+[tok] g=1 i=15 pos=34 total_ms=493.3 wait_ms=56.4 read_ms=394.0 read_MBps=2396 comp_ms=434.3 attn_ms=3.7 lm_ms=30.6 embed_ms=0.44 sample_ms=0.08
+[tok] g=1 i=16 pos=35 total_ms=497.1 wait_ms=60.5 read_ms=398.7 read_MBps=2368 comp_ms=435.8 attn_ms=4.0 lm_ms=33.8 embed_ms=0.45 sample_ms=0.07
+[tok] g=1 i=17 pos=36 total_ms=489.5 wait_ms=58.1 read_ms=393.2 read_MBps=2401 comp_ms=430.5 attn_ms=4.7 lm_ms=31.1 embed_ms=0.40 sample_ms=0.08
+[tok] g=1 i=18 pos=37 total_ms=491.1 wait_ms=59.2 read_ms=394.2 read_MBps=2394 comp_ms=431.1 attn_ms=3.9 lm_ms=31.4 embed_ms=0.40 sample_ms=0.08
+[tok] g=1 i=19 pos=38 total_ms=491.1 wait_ms=55.5 read_ms=387.2 read_MBps=2438 comp_ms=433.6 attn_ms=4.0 lm_ms=31.8 embed_ms=1.50 sample_ms=0.08
+[tok] g=1 i=20 pos=39 total_ms=504.6 wait_ms=61.1 read_ms=406.4 read_MBps=2323 comp_ms=442.6 attn_ms=4.1 lm_ms=31.2 embed_ms=0.37 sample_ms=0.09
+[tok] g=1 i=21 pos=40 total_ms=488.5 wait_ms=56.0 read_ms=388.9 read_MBps=2427 comp_ms=432.0 attn_ms=4.1 lm_ms=31.0 embed_ms=0.04 sample_ms=0.08
+[tok] g=1 i=22 pos=41 total_ms=489.7 wait_ms=61.8 read_ms=392.3 read_MBps=2406 comp_ms=427.1 attn_ms=4.0 lm_ms=31.7 embed_ms=0.38 sample_ms=0.11
+[tok] g=1 i=23 pos=42 total_ms=493.1 wait_ms=57.7 read_ms=395.8 read_MBps=2385 comp_ms=434.4 attn_ms=4.0 lm_ms=32.3 embed_ms=0.45 sample_ms=0.08
+[tok] g=1 i=24 pos=43 total_ms=497.7 wait_ms=58.0 read_ms=399.3 read_MBps=2364 comp_ms=438.9 attn_ms=4.2 lm_ms=31.6 embed_ms=0.37 sample_ms=0.08
+[tok] g=1 i=25 pos=44 total_ms=489.4 wait_ms=57.1 read_ms=389.1 read_MBps=2426 comp_ms=431.5 attn_ms=4.1 lm_ms=32.0 embed_ms=0.36 sample_ms=0.08
+[tok] g=1 i=26 pos=45 total_ms=505.2 wait_ms=57.9 read_ms=398.8 read_MBps=2367 comp_ms=446.4 attn_ms=4.3 lm_ms=32.2 embed_ms=0.39 sample_ms=0.10
+[tok] g=1 i=27 pos=46 total_ms=497.3 wait_ms=58.0 read_ms=397.8 read_MBps=2373 comp_ms=438.8 attn_ms=4.2 lm_ms=31.3 embed_ms=0.04 sample_ms=0.07
+[tok] g=1 i=28 pos=47 total_ms=485.7 wait_ms=53.9 read_ms=389.3 read_MBps=2424 comp_ms=431.0 attn_ms=4.2 lm_ms=31.7 embed_ms=0.44 sample_ms=0.08
+[tok] g=1 i=29 pos=48 total_ms=513.8 wait_ms=65.3 read_ms=414.5 read_MBps=2277 comp_ms=447.7 attn_ms=4.5 lm_ms=32.5 embed_ms=0.41 sample_ms=0.08
+[tok] g=1 i=30 pos=49 total_ms=504.5 wait_ms=59.0 read_ms=420.4 read_MBps=2245 comp_ms=445.1 attn_ms=5.0 lm_ms=31.9 embed_ms=0.05 sample_ms=0.08
+[tok] g=1 i=31 pos=50 total_ms=492.2 wait_ms=56.6 read_ms=390.4 read_MBps=2418 comp_ms=434.8 attn_ms=4.4 lm_ms=32.8 embed_ms=0.43 sample_ms=0.08
+[tok] g=1 i=32 pos=51 total_ms=501.9 wait_ms=56.3 read_ms=415.6 read_MBps=2271 comp_ms=444.7 attn_ms=4.7 lm_ms=31.5 embed_ms=0.43 sample_ms=0.08
+[tok] g=1 i=33 pos=52 total_ms=492.6 wait_ms=61.3 read_ms=394.5 read_MBps=2393 comp_ms=430.4 attn_ms=5.0 lm_ms=31.1 embed_ms=0.43 sample_ms=0.08
+[tok] g=1 i=34 pos=53 total_ms=487.3 wait_ms=58.7 read_ms=389.1 read_MBps=2426 comp_ms=427.8 attn_ms=4.3 lm_ms=31.6 embed_ms=0.38 sample_ms=0.08
+[tok] g=1 i=35 pos=54 total_ms=505.3 wait_ms=61.2 read_ms=402.1 read_MBps=2348 comp_ms=443.5 attn_ms=4.6 lm_ms=33.2 embed_ms=0.04 sample_ms=0.09
+[tok] g=1 i=36 pos=55 total_ms=487.8 wait_ms=52.6 read_ms=394.5 read_MBps=2393 comp_ms=434.7 attn_ms=4.5 lm_ms=31.3 embed_ms=0.05 sample_ms=0.08
+[tok] g=1 i=37 pos=56 total_ms=497.9 wait_ms=60.3 read_ms=393.7 read_MBps=2398 comp_ms=436.7 attn_ms=4.4 lm_ms=30.9 embed_ms=0.47 sample_ms=0.07
+[tok] g=1 i=38 pos=57 total_ms=500.8 wait_ms=57.8 read_ms=395.9 read_MBps=2384 comp_ms=442.2 attn_ms=4.7 lm_ms=32.1 embed_ms=0.38 sample_ms=0.08
+[tok] g=1 i=39 pos=58 total_ms=493.2 wait_ms=56.5 read_ms=393.2 read_MBps=2401 comp_ms=436.2 attn_ms=4.5 lm_ms=31.3 embed_ms=0.04 sample_ms=0.07
+[tok] g=1 i=40 pos=59 total_ms=479.6 wait_ms=56.2 read_ms=386.3 read_MBps=2443 comp_ms=422.5 attn_ms=4.8 lm_ms=30.6 embed_ms=0.44 sample_ms=0.08
+[tok] g=1 i=41 pos=60 total_ms=492.7 wait_ms=58.7 read_ms=393.7 read_MBps=2397 comp_ms=433.1 attn_ms=4.7 lm_ms=31.7 embed_ms=0.48 sample_ms=0.08
+[tok] g=1 i=42 pos=61 total_ms=503.8 wait_ms=62.5 read_ms=398.2 read_MBps=2371 comp_ms=440.3 attn_ms=4.8 lm_ms=32.9 embed_ms=0.48 sample_ms=0.08
+[tok] g=1 i=43 pos=62 total_ms=497.5 wait_ms=59.4 read_ms=416.4 read_MBps=2267 comp_ms=437.5 attn_ms=4.7 lm_ms=33.6 embed_ms=0.04 sample_ms=0.10
+[tok] g=1 i=44 pos=63 total_ms=517.5 wait_ms=59.7 read_ms=426.2 read_MBps=2215 comp_ms=457.3 attn_ms=4.8 lm_ms=31.8 embed_ms=0.06 sample_ms=0.08
+[tok] g=1 i=45 pos=64 total_ms=493.4 wait_ms=56.7 read_ms=392.1 read_MBps=2407 comp_ms=435.8 attn_ms=4.8 lm_ms=31.6 embed_ms=0.46 sample_ms=0.07
+[tok] g=1 i=46 pos=65 total_ms=481.3 wait_ms=55.7 read_ms=389.4 read_MBps=2424 comp_ms=425.1 attn_ms=4.9 lm_ms=30.9 embed_ms=0.05 sample_ms=0.08
+[tok] g=1 i=47 pos=66 total_ms=508.5 wait_ms=70.9 read_ms=408.7 read_MBps=2309 comp_ms=436.4 attn_ms=4.9 lm_ms=33.4 embed_ms=0.40 sample_ms=0.11
+[gen-summary] g=1 prompt_tokens=19 prefill_ms=1255.8 prefill_calls=1 prefill_wait_ms=0.0 prefill_read_ms=405.5 prefill_comp_ms=1250.4 first_sample_ms=0.07
+[gen-summary] g=1 decode_tokens=47 decode_ms=23403.2 tok_per_s=2.008 ms_per_tok_mean=497.9 p50=493.4 p95=513.8 max=534.8
+[gen-summary] g=1 wait_ms_total=2756.7 stall_pct=11.8 read_ms_total=18814.4 hidden_io_pct=85.3 read_MBps_mean=2358 read_MBps_max=2628 comp_ms_total=20600.5 attn_pct=0.9 lm_head_pct=6.4 embed_ms_total=22.9 sample_ms_total=3.9
+[gen-summary] g=1 stored_GBps=1.896 raw_equiv_GBps=16.156 (raw bytes/token=8.04 GB) streamed_GBps=bytes read from disk/s
+[gen-summary] g=1 streamed_MB_per_token=944 resident_MB=4445
+[gen-summary] g=1 verdict=MIXED (stall_pct=11.8 of decode time spent waiting for the next stream)
+[layer-mean-wait-ms] 0:0.0 1:0.0 2:0.0 3:0.0 4:0.0 5:0.0 6:0.0 7:0.0 8:0.0 9:0.0 10:0.0 11:14.2 12:0.0 13:0.0 14:0.0 15:6.8 16:0.0 17:0.0 18:0.0 19:11.6 20:0.0 21:0.0 22:0.0 23:8.1 24:0.0 25:0.0 26:0.0 27:6.6 28:0.0 29:0.0 30:0.0 31:11.3 32:0.0 33:0.0 34:0.0 35:0.0 36:0.0
+[layer-mean-read-ms] 0:0.0 1:0.0 2:0.0 3:0.0 4:0.0 5:0.0 6:0.0 7:63.7 8:0.0 9:0.0 10:0.0 11:59.4 12:0.0 13:0.0 14:0.0 15:53.4 16:0.0 17:0.0 18:0.0 19:57.0 20:0.0 21:0.0 22:0.0 23:54.6 24:0.0 25:0.0 26:0.0 27:54.0 28:0.0 29:0.0 30:0.0 31:58.1 32:0.0 33:0.0 34:0.0 35:0.0 36:0.0
+[layer-mean-comp-ms] 0:9.9 1:10.1 2:10.0 3:10.0 4:10.0 5:9.8 6:9.7 7:11.3 8:11.3 9:11.4 10:11.3 11:11.8 12:11.7 13:11.7 14:11.5 15:11.4 16:11.1 17:11.6 18:11.4 19:11.8 20:11.5 21:11.6 22:11.8 23:12.0 24:11.7 25:11.9 26:11.9 27:11.7 28:11.5 29:12.1 30:11.7 31:11.8 32:11.4 33:11.6 34:11.8 35:11.5 36:31.7
+[gen-summary] g=1 wait_ms_p95_per_stream=11.4 max=17.3
+[gen-summary] g=1 new_tokens=48 reason=max pos_after=67 ram_avail_MB_before=1949 after=2471 working_set_MB=4532 peak_working_set_MB=4532
+[exit] peak_working_set_MB=4532 ram_avail_MB=2471 total_generations=1
+[vault] weight codec huffman4
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 01:38:14 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=2770
+[vault] dir=C:\Users\1fred\Desktop\AI\JEPA\_stage_memory\vault3 streams=37 layer_blob_MB(min/max/avg)=134.6/140.6/135.2 embed_or_lm_blob_MB=520.4 total_layer_MB=4868
+[model] hidden=2560 inter=9728 layers=36 heads=32 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=1 rope_theta=5000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x135MB sector=4096 prefill_batch=32 ctx=1024 kv_cache_MB=302
+[resident] requested_MB=4500 pinned_streams=30 pinned_MB=4445 lm_head_pinned=1 streamed_MB_per_token=944
+[init] startup_s=1.50
+[exit] peak_working_set_MB=4543 ram_avail_MB=2372 total_generations=0
+[vault] weight codec rans4 (cube-rANS)
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 01:38:54 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=1863
+[vault] dir=vault_hermes14b_rans streams=42 layer_blob_MB(min/max/avg)=433.3/467.8/437.4 embed_or_lm_blob_MB=1034.6 total_layer_MB=17496
+[model] hidden=5120 inter=17408 layers=40 heads=40 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=0 rope_theta=1000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x1035MB sector=4096 prefill_batch=32 ctx=1024 kv_cache_MB=336
+[resident] requested_MB=5500 pinned_streams=11 pinned_MB=5398 lm_head_pinned=1 streamed_MB_per_token=14165
+[init] startup_s=3.55
+[exit] peak_working_set_MB=6099 ram_avail_MB=962 total_generations=0
+[vault] weight codec rans4 (cube-rANS)
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 01:42:11 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=2175
+[vault] dir=vault_hermes14b_rans streams=42 layer_blob_MB(min/max/avg)=433.3/467.8/437.4 embed_or_lm_blob_MB=1034.6 total_layer_MB=17496
+[model] hidden=5120 inter=17408 layers=40 heads=40 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=0 rope_theta=1000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x1035MB sector=4096 prefill_batch=32 ctx=1024 kv_cache_MB=336
+[resident] requested_MB=5500 pinned_streams=11 pinned_MB=5398 lm_head_pinned=1 streamed_MB_per_token=14165
+[init] startup_s=1.80
+[gen 1] begin prompt_tokens=32 pos_before=0 max_new=8 temp=0.00 top_p=1.00 top_k=1 ram_avail_MB=2176
+[prefill] g=1 call=1 tokens=32 logits=1 total_ms=15794.0 wait_ms=5680.2 read_ms=13088.4 comp_ms=10098.1 attn_ms=141.7
+[stream] prefill1 s=0 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=250.1
+[stream] prefill1 s=1 kind=layer MB=467.8 read_ms=218.5 read_MBps=2141 wait_ms=0.0 comp_ms=255.4
+[stream] prefill1 s=2 kind=layer MB=466.8 read_ms=267.3 read_MBps=1746 wait_ms=12.1 comp_ms=248.0
+[stream] prefill1 s=3 kind=layer MB=461.6 read_ms=232.3 read_MBps=1987 wait_ms=0.0 comp_ms=231.9
+[stream] prefill1 s=4 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=218.3
+[stream] prefill1 s=5 kind=layer MB=446.2 read_ms=220.2 read_MBps=2027 wait_ms=0.0 comp_ms=236.7
+[stream] prefill1 s=6 kind=layer MB=437.2 read_ms=218.7 read_MBps=1999 wait_ms=0.0 comp_ms=225.8
+[stream] prefill1 s=7 kind=layer MB=435.8 read_ms=244.8 read_MBps=1780 wait_ms=19.2 comp_ms=229.8
+[stream] prefill1 s=8 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=228.8
+[stream] prefill1 s=9 kind=layer MB=435.0 read_ms=412.7 read_MBps=1054 wait_ms=0.0 comp_ms=240.1
+[stream] prefill1 s=10 kind=layer MB=434.5 read_ms=633.1 read_MBps=686 wait_ms=393.2 comp_ms=217.8
+[stream] prefill1 s=11 kind=layer MB=434.5 read_ms=624.7 read_MBps=696 wait_ms=407.0 comp_ms=251.1
+[stream] prefill1 s=12 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=225.1
+[stream] prefill1 s=13 kind=layer MB=434.7 read_ms=1026.8 read_MBps=423 wait_ms=550.8 comp_ms=224.3
+[stream] prefill1 s=14 kind=layer MB=434.5 read_ms=2346.1 read_MBps=185 wait_ms=2122.1 comp_ms=225.0
+[stream] prefill1 s=15 kind=layer MB=434.3 read_ms=1456.5 read_MBps=298 wait_ms=1231.6 comp_ms=250.1
+[stream] prefill1 s=16 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=223.6
+[stream] prefill1 s=17 kind=layer MB=434.3 read_ms=723.0 read_MBps=601 wait_ms=249.4 comp_ms=237.6
+[stream] prefill1 s=18 kind=layer MB=434.3 read_ms=512.6 read_MBps=847 wait_ms=275.1 comp_ms=221.7
+[stream] prefill1 s=19 kind=layer MB=434.3 read_ms=641.3 read_MBps=677 wait_ms=419.7 comp_ms=258.9
+[stream] prefill1 s=20 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=243.0
+[stream] prefill1 s=21 kind=layer MB=434.1 read_ms=212.4 read_MBps=2043 wait_ms=0.0 comp_ms=268.0
+[stream] prefill1 s=22 kind=layer MB=434.0 read_ms=226.3 read_MBps=1918 wait_ms=0.0 comp_ms=273.4
+[stream] prefill1 s=23 kind=layer MB=433.8 read_ms=271.7 read_MBps=1597 wait_ms=0.0 comp_ms=252.7
+[stream] prefill1 s=24 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=248.5
+[stream] prefill1 s=25 kind=layer MB=433.4 read_ms=196.8 read_MBps=2202 wait_ms=0.0 comp_ms=266.3
+[stream] prefill1 s=26 kind=layer MB=433.4 read_ms=190.0 read_MBps=2281 wait_ms=0.0 comp_ms=267.0
+[stream] prefill1 s=27 kind=layer MB=433.5 read_ms=213.8 read_MBps=2028 wait_ms=0.0 comp_ms=271.1
+[stream] prefill1 s=28 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=246.0
+[stream] prefill1 s=29 kind=layer MB=433.3 read_ms=210.0 read_MBps=2064 wait_ms=0.0 comp_ms=259.4
+[stream] prefill1 s=30 kind=layer MB=433.4 read_ms=235.3 read_MBps=1842 wait_ms=0.0 comp_ms=287.5
+[stream] prefill1 s=31 kind=layer MB=433.4 read_ms=216.0 read_MBps=2006 wait_ms=0.0 comp_ms=250.1
+[stream] prefill1 s=32 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=238.1
+[stream] prefill1 s=33 kind=layer MB=433.4 read_ms=237.7 read_MBps=1824 wait_ms=0.0 comp_ms=268.7
+[stream] prefill1 s=34 kind=layer MB=433.4 read_ms=258.0 read_MBps=1680 wait_ms=0.0 comp_ms=275.0
+[stream] prefill1 s=35 kind=layer MB=433.5 read_ms=223.3 read_MBps=1941 wait_ms=0.0 comp_ms=238.5
+[stream] prefill1 s=36 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=257.6
+[stream] prefill1 s=37 kind=layer MB=433.5 read_ms=201.4 read_MBps=2153 wait_ms=0.0 comp_ms=233.6
+[stream] prefill1 s=38 kind=layer MB=433.8 read_ms=200.8 read_MBps=2160 wait_ms=0.0 comp_ms=281.9
+[stream] prefill1 s=39 kind=layer MB=434.6 read_ms=216.2 read_MBps=2010 wait_ms=0.0 comp_ms=278.0
+[stream] prefill1 s=41 kind=lm_head MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=193.6
+[tok] g=1 i=1 pos=33 total_ms=12258.7 wait_ms=8655.2 read_ms=12096.1 read_MBps=1086 comp_ms=3601.1 attn_ms=4.7 lm_ms=194.8 embed_ms=0.75 sample_ms=0.07
+[stream] decode s=0 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=84.5
+[stream] decode s=1 kind=layer MB=467.8 read_ms=220.9 read_MBps=2118 wait_ms=0.0 comp_ms=86.9
+[stream] decode s=2 kind=layer MB=466.8 read_ms=176.0 read_MBps=2652 wait_ms=89.2 comp_ms=83.7
+[stream] decode s=3 kind=layer MB=461.6 read_ms=162.7 read_MBps=2838 wait_ms=79.1 comp_ms=81.6
+[stream] decode s=4 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=81.9
+[stream] decode s=5 kind=layer MB=446.2 read_ms=157.2 read_MBps=2839 wait_ms=0.0 comp_ms=84.1
+[stream] decode s=6 kind=layer MB=437.2 read_ms=185.4 read_MBps=2358 wait_ms=101.5 comp_ms=86.1
+[stream] decode s=7 kind=layer MB=435.8 read_ms=199.5 read_MBps=2185 wait_ms=113.5 comp_ms=86.8
+[stream] decode s=8 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=89.9
+[stream] decode s=9 kind=layer MB=435.0 read_ms=320.2 read_MBps=1359 wait_ms=143.6 comp_ms=84.9
+[stream] decode s=10 kind=layer MB=434.5 read_ms=543.9 read_MBps=799 wait_ms=459.2 comp_ms=82.4
+[stream] decode s=11 kind=layer MB=434.5 read_ms=544.8 read_MBps=798 wait_ms=462.4 comp_ms=83.2
+[stream] decode s=12 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=85.1
+[stream] decode s=13 kind=layer MB=434.7 read_ms=957.1 read_MBps=454 wait_ms=788.8 comp_ms=81.7
+[stream] decode s=14 kind=layer MB=434.5 read_ms=2279.1 read_MBps=191 wait_ms=2197.5 comp_ms=81.6
+[stream] decode s=15 kind=layer MB=434.3 read_ms=1401.0 read_MBps=310 wait_ms=1319.5 comp_ms=83.6
+[stream] decode s=16 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=83.9
+[stream] decode s=17 kind=layer MB=434.3 read_ms=657.2 read_MBps=661 wait_ms=489.9 comp_ms=83.1
+[stream] decode s=18 kind=layer MB=434.3 read_ms=486.0 read_MBps=894 wait_ms=403.0 comp_ms=85.3
+[stream] decode s=19 kind=layer MB=434.3 read_ms=665.1 read_MBps=653 wait_ms=580.1 comp_ms=85.3
+[stream] decode s=20 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=87.7
+[stream] decode s=21 kind=layer MB=434.1 read_ms=259.5 read_MBps=1673 wait_ms=93.7 comp_ms=86.4
+[stream] decode s=22 kind=layer MB=434.0 read_ms=190.1 read_MBps=2283 wait_ms=103.9 comp_ms=85.0
+[stream] decode s=23 kind=layer MB=433.8 read_ms=283.7 read_MBps=1529 wait_ms=198.8 comp_ms=84.2
+[stream] decode s=24 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=89.0
+[stream] decode s=25 kind=layer MB=433.4 read_ms=269.5 read_MBps=1608 wait_ms=96.3 comp_ms=87.5
+[stream] decode s=26 kind=layer MB=433.4 read_ms=182.7 read_MBps=2372 wait_ms=95.4 comp_ms=86.2
+[stream] decode s=27 kind=layer MB=433.5 read_ms=193.1 read_MBps=2245 wait_ms=107.1 comp_ms=85.3
+[stream] decode s=28 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=84.8
+[stream] decode s=29 kind=layer MB=433.3 read_ms=195.6 read_MBps=2215 wait_ms=25.6 comp_ms=84.7
+[stream] decode s=30 kind=layer MB=433.4 read_ms=208.4 read_MBps=2079 wait_ms=123.9 comp_ms=83.5
+[stream] decode s=31 kind=layer MB=433.4 read_ms=189.8 read_MBps=2283 wait_ms=106.5 comp_ms=85.3
+[stream] decode s=32 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=89.4
+[stream] decode s=33 kind=layer MB=433.4 read_ms=180.7 read_MBps=2398 wait_ms=6.2 comp_ms=86.7
+[stream] decode s=34 kind=layer MB=433.4 read_ms=210.0 read_MBps=2064 wait_ms=123.5 comp_ms=86.3
+[stream] decode s=35 kind=layer MB=433.5 read_ms=203.0 read_MBps=2135 wait_ms=116.9 comp_ms=84.3
+[stream] decode s=36 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=88.6
+[stream] decode s=37 kind=layer MB=433.5 read_ms=203.5 read_MBps=2130 wait_ms=30.8 comp_ms=84.9
+[stream] decode s=38 kind=layer MB=433.8 read_ms=174.9 read_MBps=2480 wait_ms=90.1 comp_ms=86.8
+[stream] decode s=39 kind=layer MB=434.6 read_ms=195.5 read_MBps=2223 wait_ms=109.0 comp_ms=84.1
+[stream] decode s=41 kind=lm_head MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=194.8
+[tok] g=1 i=2 pos=34 total_ms=11936.7 wait_ms=8342.4 read_ms=11731.4 read_MBps=1119 comp_ms=3592.5 attn_ms=4.7 lm_ms=196.8 embed_ms=0.14 sample_ms=0.07
+[stream] decode s=0 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=83.0
+[stream] decode s=1 kind=layer MB=467.8 read_ms=168.3 read_MBps=2779 wait_ms=0.0 comp_ms=84.3
+[stream] decode s=2 kind=layer MB=466.8 read_ms=168.5 read_MBps=2770 wait_ms=84.4 comp_ms=83.9
+[stream] decode s=3 kind=layer MB=461.6 read_ms=167.0 read_MBps=2763 wait_ms=83.3 comp_ms=83.2
+[stream] decode s=4 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=84.0
+[stream] decode s=5 kind=layer MB=446.2 read_ms=172.0 read_MBps=2594 wait_ms=4.9 comp_ms=84.1
+[stream] decode s=6 kind=layer MB=437.2 read_ms=181.9 read_MBps=2403 wait_ms=98.0 comp_ms=86.0
+[stream] decode s=7 kind=layer MB=435.8 read_ms=197.1 read_MBps=2211 wait_ms=111.3 comp_ms=85.5
+[stream] decode s=8 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=87.3
+[stream] decode s=9 kind=layer MB=435.0 read_ms=313.2 read_MBps=1389 wait_ms=140.5 comp_ms=82.9
+[stream] decode s=10 kind=layer MB=434.5 read_ms=528.8 read_MBps=822 wait_ms=446.1 comp_ms=83.9
+[stream] decode s=11 kind=layer MB=434.5 read_ms=561.8 read_MBps=773 wait_ms=478.0 comp_ms=82.9
+[stream] decode s=12 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=84.2
+[stream] decode s=13 kind=layer MB=434.7 read_ms=959.0 read_MBps=453 wait_ms=792.1 comp_ms=83.2
+[stream] decode s=14 kind=layer MB=434.5 read_ms=2276.9 read_MBps=191 wait_ms=2193.8 comp_ms=81.7
+[stream] decode s=15 kind=layer MB=434.3 read_ms=1432.7 read_MBps=303 wait_ms=1351.1 comp_ms=81.7
+[stream] decode s=16 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=83.6
+[stream] decode s=17 kind=layer MB=434.3 read_ms=577.4 read_MBps=752 wait_ms=412.3 comp_ms=89.9
+[stream] decode s=18 kind=layer MB=434.3 read_ms=502.7 read_MBps=864 wait_ms=413.0 comp_ms=82.0
+[stream] decode s=19 kind=layer MB=434.3 read_ms=607.6 read_MBps=715 wait_ms=525.7 comp_ms=85.1
+[stream] decode s=20 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=85.8
+[stream] decode s=21 kind=layer MB=434.1 read_ms=208.7 read_MBps=2080 wait_ms=37.9 comp_ms=86.0
+[stream] decode s=22 kind=layer MB=434.0 read_ms=189.2 read_MBps=2293 wait_ms=103.3 comp_ms=86.1
+[stream] decode s=23 kind=layer MB=433.8 read_ms=231.5 read_MBps=1874 wait_ms=145.5 comp_ms=84.7
+[stream] decode s=24 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=86.6
+[stream] decode s=25 kind=layer MB=433.4 read_ms=184.8 read_MBps=2346 wait_ms=13.6 comp_ms=87.1
+[stream] decode s=26 kind=layer MB=433.4 read_ms=177.0 read_MBps=2449 wait_ms=90.0 comp_ms=84.7
+[stream] decode s=27 kind=layer MB=433.5 read_ms=191.3 read_MBps=2267 wait_ms=106.7 comp_ms=83.0
+[stream] decode s=28 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=86.4
+[stream] decode s=29 kind=layer MB=433.3 read_ms=189.4 read_MBps=2288 wait_ms=20.2 comp_ms=84.9
+[stream] decode s=30 kind=layer MB=433.4 read_ms=210.8 read_MBps=2056 wait_ms=126.0 comp_ms=85.0
+[stream] decode s=31 kind=layer MB=433.4 read_ms=195.8 read_MBps=2214 wait_ms=111.0 comp_ms=87.2
+[stream] decode s=32 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=88.6
+[stream] decode s=33 kind=layer MB=433.4 read_ms=178.5 read_MBps=2428 wait_ms=2.8 comp_ms=87.7
+[stream] decode s=34 kind=layer MB=433.4 read_ms=212.0 read_MBps=2044 wait_ms=124.5 comp_ms=84.7
+[stream] decode s=35 kind=layer MB=433.5 read_ms=198.9 read_MBps=2180 wait_ms=115.2 comp_ms=84.6
+[stream] decode s=36 kind=layer MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=86.5
+[stream] decode s=37 kind=layer MB=433.5 read_ms=191.9 read_MBps=2259 wait_ms=22.0 comp_ms=84.4
+[stream] decode s=38 kind=layer MB=433.8 read_ms=177.0 read_MBps=2451 wait_ms=92.7 comp_ms=83.7
+[stream] decode s=39 kind=layer MB=434.6 read_ms=179.7 read_MBps=2419 wait_ms=96.2 comp_ms=85.8
+[stream] decode s=41 kind=lm_head MB=0.0 read_ms=0.0 read_MBps=0 wait_ms=0.0 comp_ms=196.8
+[tok] g=1 i=3 pos=35 total_ms=12062.5 wait_ms=8496.7 read_ms=11859.0 read_MBps=1107 comp_ms=3564.0 attn_ms=4.7 lm_ms=196.0 embed_ms=0.15 sample_ms=0.07
+[tok] g=1 i=4 pos=36 total_ms=12144.0 wait_ms=8537.4 read_ms=11931.0 read_MBps=1101 comp_ms=3604.9 attn_ms=4.7 lm_ms=195.5 embed_ms=0.15 sample_ms=0.08
+[tok] g=1 i=5 pos=37 total_ms=12256.1 wait_ms=8671.6 read_ms=12057.8 read_MBps=1089 comp_ms=3582.4 attn_ms=4.7 lm_ms=194.3 embed_ms=0.63 sample_ms=0.07
+[tok] g=1 i=6 pos=38 total_ms=11995.6 wait_ms=8421.5 read_ms=11784.2 read_MBps=1114 comp_ms=3572.1 attn_ms=5.2 lm_ms=195.7 embed_ms=0.46 sample_ms=0.07
+[tok] g=1 i=7 pos=39 total_ms=12125.1 wait_ms=8545.3 read_ms=11909.7 read_MBps=1102 comp_ms=3578.1 attn_ms=4.9 lm_ms=194.8 embed_ms=0.16 sample_ms=0.07
+[gen-summary] g=1 prompt_tokens=32 prefill_ms=15794.4 prefill_calls=1 prefill_wait_ms=5680.2 prefill_read_ms=13088.4 prefill_comp_ms=10098.1 first_sample_ms=0.07
+[gen-summary] g=1 decode_tokens=7 decode_ms=84778.8 tok_per_s=0.083 ms_per_tok_mean=12111.3 p50=12125.1 p95=12256.1 max=12258.7
+[gen-summary] g=1 wait_ms_total=59670.0 stall_pct=70.4 read_ms_total=83369.3 hidden_io_pct=28.4 read_MBps_mean=1102 read_MBps_max=2855 comp_ms_total=25095.2 attn_pct=0.0 lm_head_pct=1.6 embed_ms_total=2.4 sample_ms_total=0.5
+[gen-summary] g=1 stored_GBps=1.084 raw_equiv_GBps=2.310 (raw bytes/token=27.98 GB) streamed_GBps=bytes read from disk/s
+[gen-summary] g=1 streamed_MB_per_token=13130 resident_MB=5398
+[gen-summary] g=1 verdict=IO-BOUND (stall_pct=70.4 of decode time spent waiting for the next stream)
+[layer-mean-wait-ms] 0:0.0 1:0.0 2:84.0 3:81.7 4:0.0 5:2.3 6:102.6 7:134.1 8:0.0 9:157.4 10:475.5 11:476.3 12:0.0 13:792.8 14:2200.6 15:1333.9 16:0.0 17:493.9 18:395.2 19:526.3 20:0.0 21:50.5 22:102.5 23:153.7 24:0.0 25:35.0 26:89.4 27:105.7 28:0.0 29:21.2 30:130.1 31:114.6 32:0.0 33:5.8 34:123.6 35:114.2 36:0.0 37:29.6 38:92.4 39:99.4 40:0.0
+[layer-mean-read-ms] 0:0.0 1:180.2 2:169.1 3:165.1 4:0.0 5:162.6 6:185.9 7:221.9 8:0.0 9:330.7 10:559.5 11:559.5 12:0.0 13:959.9 14:2281.9 15:1415.4 16:0.0 17:660.7 18:477.6 19:608.6 20:0.0 21:219.2 22:187.6 23:236.9 24:0.0 25:205.7 26:176.0 27:190.3 28:0.0 29:191.8 30:215.1 31:198.6 32:0.0 33:179.0 34:209.6 35:198.0 36:0.0 37:201.3 38:177.6 39:184.5 40:0.0
+[layer-mean-comp-ms] 0:83.7 1:85.2 2:83.5 3:81.8 4:81.8 5:83.4 6:89.4 7:85.4 8:88.0 9:84.2 10:83.4 11:82.6 12:84.8 13:82.3 14:81.7 15:83.9 16:84.2 17:83.4 18:82.5 19:84.1 20:85.8 21:85.3 22:84.3 23:83.6 24:87.2 25:86.8 26:84.8 27:84.3 28:86.9 29:85.2 30:84.6 31:85.4 32:88.3 33:86.1 34:84.0 35:84.6 36:87.6 37:85.4 38:85.3 39:85.0 40:195.4
+[gen-summary] g=1 wait_ms_p95_per_stream=792.1 max=2221.6
+[gen-summary] g=1 new_tokens=8 reason=max pos_after=40 ram_avail_MB_before=2176 after=1313 working_set_MB=6070 peak_working_set_MB=6070
+[exit] peak_working_set_MB=6070 ram_avail_MB=1313 total_generations=1
+[vault] weight codec rans4 (cube-rANS)
+[resident] requested 5500 MB exceeds free RAM minus 1.5 GB reserve; clamped to 4959 MB
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 02:00:19 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=1936
+[vault] dir=C:\Users\1fred\Desktop\AI\Hermes\cube-harness\vault_hermes14b_rans streams=42 layer_blob_MB(min/max/avg)=433.3/467.8/437.4 embed_or_lm_blob_MB=1034.6 total_layer_MB=17496
+[model] hidden=5120 inter=17408 layers=40 heads=40 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=0 rope_theta=1000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x1035MB sector=4096 prefill_batch=32 ctx=1024 kv_cache_MB=336
+[resident] requested_MB=5500 pinned_streams=9 pinned_MB=4530 lm_head_pinned=1 streamed_MB_per_token=15033
+[init] startup_s=1.50
+[reset] kv cache cleared
+[reset] kv cache cleared
+[reset] kv cache cleared
+[reset] kv cache cleared
+[reset] kv cache cleared
+[reset] kv cache cleared
+[reset] kv cache cleared
+[exit] peak_working_set_MB=5280 ram_avail_MB=2284 total_generations=0
+[vault] weight codec rans4 (cube-rANS)
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 02:27:45 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=1891
+[vault] dir=C:\Users\1fred\Desktop\AI\Hermes\cube-harness\vault_hermes14b_rans streams=42 layer_blob_MB(min/max/avg)=433.3/467.8/437.4 embed_or_lm_blob_MB=1034.6 total_layer_MB=17496
+[model] hidden=5120 inter=17408 layers=40 heads=40 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=0 rope_theta=1000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x1035MB sector=4096 prefill_batch=32 ctx=1024 kv_cache_MB=336
+[resident] requested_MB=5500 pinned_streams=11 pinned_MB=5398 lm_head_pinned=1 streamed_MB_per_token=14165
+[init] startup_s=1.84
+[reset] kv cache cleared
+[reset] kv cache cleared
+[exit] peak_working_set_MB=6106 ram_avail_MB=1145 total_generations=0
+[vault] weight codec rans4 (cube-rANS)
+[split] GPU worker runs layers 0..7 (C:\Users\1fred\Desktop\AI\Hermes\cube-harness\gpu\gpu_engine.exe); this process runs layers 8..39 + final norm + lm_head
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 02:44:46 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=2146
+[vault] dir=C:\Users\1fred\Desktop\AI\Hermes\cube-harness\vault_hermes14b_rans streams=42 layer_blob_MB(min/max/avg)=433.3/467.8/437.4 embed_or_lm_blob_MB=1034.6 total_layer_MB=17496
+[model] hidden=5120 inter=17408 layers=40 heads=40 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=0 rope_theta=1000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x1035MB sector=4096 prefill_batch=32 ctx=1024 kv_cache_MB=336
+[resident] requested_MB=5500 pinned_streams=11 pinned_MB=5372 lm_head_pinned=1 streamed_MB_per_token=14191
+[init] startup_s=6.42
+[reset] kv cache cleared
+[reset] kv cache cleared
+[reset] kv cache cleared
+[exit] peak_working_set_MB=6013 ram_avail_MB=1625 total_generations=0
+[vault] weight codec rans4 (cube-rANS)
+[split] GPU worker runs layers 0..7 (C:\Users\1fred\Desktop\AI\Hermes\cube-harness\gpu\gpu_engine_old.exe); this process runs layers 8..39 + final norm + lm_head
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 02:51:37 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=2558
+[vault] dir=C:\Users\1fred\Desktop\AI\Hermes\cube-harness\vault_hermes14b_rans streams=42 layer_blob_MB(min/max/avg)=433.3/467.8/437.4 embed_or_lm_blob_MB=1034.6 total_layer_MB=17496
+[model] hidden=5120 inter=17408 layers=40 heads=40 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=0 rope_theta=1000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x1035MB sector=4096 prefill_batch=32 ctx=1024 kv_cache_MB=336
+[resident] requested_MB=5500 pinned_streams=11 pinned_MB=5372 lm_head_pinned=1 streamed_MB_per_token=14191
+[init] startup_s=5.72
+[reset] kv cache cleared
+[reset] kv cache cleared
+[vault] weight codec huffman4
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 03:05:23 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=3279
+[vault] dir=C:\Users\1fred\Desktop\AI\JEPA\_stage_memory\vault3 streams=37 layer_blob_MB(min/max/avg)=134.6/140.6/135.2 embed_or_lm_blob_MB=520.4 total_layer_MB=4868
+[model] hidden=2560 inter=9728 layers=36 heads=32 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=1 rope_theta=5000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x135MB sector=4096 prefill_batch=32 ctx=1024 kv_cache_MB=302
+[resident] requested_MB=4500 pinned_streams=30 pinned_MB=4445 lm_head_pinned=1 streamed_MB_per_token=944
+[init] startup_s=1.49
+[exit] peak_working_set_MB=4542 ram_avail_MB=2855 total_generations=0
+[vault] weight codec huffman4
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 03:08:08 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=2453
+[vault] dir=C:\Users\1fred\Desktop\AI\JEPA\_stage_memory\vault3 streams=37 layer_blob_MB(min/max/avg)=134.6/140.6/135.2 embed_or_lm_blob_MB=520.4 total_layer_MB=4868
+[model] hidden=2560 inter=9728 layers=36 heads=32 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=1 rope_theta=5000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x135MB sector=4096 prefill_batch=32 ctx=1024 kv_cache_MB=302
+[resident] requested_MB=4500 pinned_streams=30 pinned_MB=4445 lm_head_pinned=1 streamed_MB_per_token=944
+[init] startup_s=1.65
+[exit] peak_working_set_MB=4544 ram_avail_MB=2364 total_generations=0
+[vault] weight codec rans4 (cube-rANS)
+[split] GPU worker runs layers 0..7 (C:\Users\1fred\Desktop\AI\Hermes\cube-harness\gpu\gpu_engine.exe); this process runs layers 8..39 + final norm + lm_head
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 03:12:00 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=2881
+[vault] dir=vault_hermes14b_rans streams=42 layer_blob_MB(min/max/avg)=433.3/467.8/437.4 embed_or_lm_blob_MB=1034.6 total_layer_MB=17496
+[model] hidden=5120 inter=17408 layers=40 heads=40 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=0 rope_theta=1000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x1035MB sector=4096 prefill_batch=32 ctx=1024 kv_cache_MB=336
+[resident] requested_MB=5500 pinned_streams=11 pinned_MB=5372 lm_head_pinned=1 streamed_MB_per_token=14191
+[init] startup_s=8.20
+[exit] peak_working_set_MB=6011 ram_avail_MB=1798 total_generations=0
+[vault] weight codec rans4 (cube-rANS)
+[split] GPU worker runs layers 0..7 (C:\Users\1fred\Desktop\AI\Hermes\cube-harness\gpu\gpu_engine.exe); this process runs layers 8..39 + final norm + lm_head
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 03:15:44 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=2891
+[vault] dir=vault_hermes14b_rans streams=42 layer_blob_MB(min/max/avg)=433.3/467.8/437.4 embed_or_lm_blob_MB=1034.6 total_layer_MB=17496
+[model] hidden=5120 inter=17408 layers=40 heads=40 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=0 rope_theta=1000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x1035MB sector=4096 prefill_batch=32 ctx=1024 kv_cache_MB=336
+[resident] requested_MB=5500 pinned_streams=11 pinned_MB=5372 lm_head_pinned=1 streamed_MB_per_token=14191
+[init] startup_s=5.60
+[exit] peak_working_set_MB=6012 ram_avail_MB=1735 total_generations=0
+[vault] weight codec rans4 (cube-rANS)
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 12:04:31 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=3261
+[vault] dir=C:\Users\1fred\Desktop\AI\Hermes\cube-harness\vault_hermes14b_rans streams=42 layer_blob_MB(min/max/avg)=433.3/467.8/437.4 embed_or_lm_blob_MB=1034.6 total_layer_MB=17496
+[model] hidden=5120 inter=17408 layers=40 heads=40 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=0 rope_theta=1000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x1035MB sector=4096 prefill_batch=32 ctx=1024 kv_cache_MB=336
+[resident] requested_MB=5500 pinned_streams=11 pinned_MB=5398 lm_head_pinned=1 streamed_MB_per_token=14165
+[init] startup_s=1.59
+[reset] kv cache cleared
+[reset] kv cache cleared
+[reset] kv cache cleared
+[exit] peak_working_set_MB=6106 ram_avail_MB=2126 total_generations=0
+[vault] weight codec rans4 (cube-rANS)
+[split] GPU worker runs layers 0..7 (C:\Users\1fred\Desktop\AI\Hermes\cube-harness\gpu\gpu_engine.exe); this process runs layers 8..39 + final norm + lm_head
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 12:08:07 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=3484
+[vault] dir=C:\Users\1fred\Desktop\AI\Hermes\cube-harness\vault_hermes14b_rans streams=42 layer_blob_MB(min/max/avg)=433.3/467.8/437.4 embed_or_lm_blob_MB=1034.6 total_layer_MB=17496
+[model] hidden=5120 inter=17408 layers=40 heads=40 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=0 rope_theta=1000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x1035MB sector=4096 prefill_batch=32 ctx=1024 kv_cache_MB=336
+[resident] requested_MB=5500 pinned_streams=11 pinned_MB=5372 lm_head_pinned=1 streamed_MB_per_token=14191
+[init] startup_s=5.76
+[reset] kv cache cleared
+[reset] kv cache cleared
+[reset] kv cache cleared
+[exit] peak_working_set_MB=6011 ram_avail_MB=2418 total_generations=0
+[vault] weight codec huffman4
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 12:39:16 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=2882
+[vault] dir=C:\Users\1fred\Desktop\AI\Hermes\cube-harness\vault_hermes14b_huff streams=42 layer_blob_MB(min/max/avg)=435.4/470.2/439.7 embed_or_lm_blob_MB=1040.0 total_layer_MB=17587
+[model] hidden=5120 inter=17408 layers=40 heads=40 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=0 rope_theta=1000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x1040MB sector=4096 prefill_batch=32 ctx=1024 kv_cache_MB=336
+[resident] requested_MB=5500 pinned_streams=11 pinned_MB=5427 lm_head_pinned=1 streamed_MB_per_token=14238
+[init] startup_s=1.59
+[reset] kv cache cleared
+[reset] kv cache cleared
+[reset] kv cache cleared
+[exit] peak_working_set_MB=6136 ram_avail_MB=1833 total_generations=0

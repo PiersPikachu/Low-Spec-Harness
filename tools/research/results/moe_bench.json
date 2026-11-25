@@ -1,0 +1,298 @@
+{
+ "vault_qwen3_30b_a3b_huff@9000": [
+  {
+   "prompt": "In one sentence, what is lossless compre",
+   "tokens": 31,
+   "tok_s": 1.338,
+   "prefill_ms": 8565.0,
+   "wall_s": 30.996397972106934,
+   "hits": 6662,
+   "misses": 7490,
+   "hit_rate": 0.4707461842849067,
+   "read_ms": 21861.3,
+   "text": "Lossless compression is a data compression method that reduces file size without losing any information, allowing the or"
+  },
+  {
+   "prompt": "Explain in three sentences how a refrige",
+   "tokens": 48,
+   "tok_s": 1.431,
+   "prefill_ms": 7971.0,
+   "wall_s": 41.46040678024292,
+   "hits": 12039,
+   "misses": 9145,
+   "hit_rate": 0.5683062688821753,
+   "read_ms": 26032.3,
+   "text": "A refrigerator keeps food cold by using a refrigeration cycle that involves a refrigerant, which absorbs heat from insid"
+  },
+  {
+   "prompt": "Write a Python function that returns the",
+   "tokens": 48,
+   "tok_s": 1.299,
+   "prefill_ms": 8055.0,
+   "wall_s": 44.92983412742615,
+   "hits": 10528,
+   "misses": 10663,
+   "hit_rate": 0.49681468547968477,
+   "read_ms": 30457.200000000004,
+   "text": "Here's a Python function that returns the n-th Fibonacci number using an iterative approach:\n\n```python\ndef fibonacci(n)"
+  },
+  {
+   "prompt": "List five tips for writing clear technic",
+   "tokens": 48,
+   "tok_s": 1.442,
+   "prefill_ms": 6983.0,
+   "wall_s": 40.16898560523987,
+   "hits": 12182,
+   "misses": 8658,
+   "hit_rate": 0.5845489443378119,
+   "read_ms": 24572.300000000003,
+   "text": "Certainly! Here are five essential tips for writing clear technical documentation:\n\n1. **Know Your Audience**  \n   Tailo"
+  },
+  {
+   "prompt": "A train travels 180 km in 2.5 hours. Wha",
+   "tokens": 48,
+   "tok_s": 1.261,
+   "prefill_ms": 9223.0,
+   "wall_s": 47.4319269657135,
+   "hits": 9594,
+   "misses": 11914,
+   "hit_rate": 0.44606657987725495,
+   "read_ms": 33781.19999999998,
+   "text": "To find the **average speed** of the train, we use the formula:\n\n$$\n\\text{Average Speed} = \\frac{\\text{Total Distance}}{"
+  },
+  {
+   "prompt": "Write the opening two sentences of a sho",
+   "tokens": 48,
+   "tok_s": 1.488,
+   "prefill_ms": 8274.0,
+   "wall_s": 40.49645256996155,
+   "hits": 13131,
+   "misses": 8077,
+   "hit_rate": 0.6191531497548095,
+   "read_ms": 23198.100000000006,
+   "text": "The wind screamed like a banshee through the iron ribs of the lighthouse, shaking the tower so violently the beam above "
+  }
+ ],
+ "vault_gptoss_20b@9000": [
+  {
+   "prompt": "In one sentence, what is lossless compre",
+   "tokens": 48,
+   "tok_s": 3.567,
+   "prefill_ms": 4915.0,
+   "wall_s": 18.338377952575684,
+   "hits": 3535,
+   "misses": 668,
+   "hit_rate": 0.841065905305734,
+   "read_ms": 4230.6,
+   "text": "analysisThe user asks: \"In one sentence, what is lossless compression?\" They want a concise definition. So answer: \"Loss"
+  },
+  {
+   "prompt": "Explain in three sentences how a refrige",
+   "tokens": 48,
+   "tok_s": 3.469,
+   "prefill_ms": 3468.0,
+   "wall_s": 17.248576641082764,
+   "hits": 3962,
+   "misses": 17,
+   "hit_rate": 0.995727569741141,
+   "read_ms": 209.59999999999945,
+   "text": "analysisThe user wants a concise explanation in three sentences. Should explain refrigeration cycle: compressor, condens"
+  },
+  {
+   "prompt": "Write a Python function that returns the",
+   "tokens": 48,
+   "tok_s": 3.623,
+   "prefill_ms": 3670.0,
+   "wall_s": 16.87712001800537,
+   "hits": 3684,
+   "misses": 57,
+   "hit_rate": 0.9847634322373697,
+   "read_ms": 709.4000000000005,
+   "text": "analysisThe user asks: \"Write a Python function that returns the n-th Fibonacci number iteratively.\" They likely want a "
+  },
+  {
+   "prompt": "List five tips for writing clear technic",
+   "tokens": 48,
+   "tok_s": 3.604,
+   "prefill_ms": 3449.0,
+   "wall_s": 16.72066879272461,
+   "hits": 3895,
+   "misses": 0,
+   "hit_rate": 1.0,
+   "read_ms": 0.0,
+   "text": "analysisThe user asks: \"List five tips for writing clear technical documentation.\" They want a list of five tips. Should"
+  },
+  {
+   "prompt": "A train travels 180 km in 2.5 hours. Wha",
+   "tokens": 48,
+   "tok_s": 3.584,
+   "prefill_ms": 3946.0,
+   "wall_s": 17.286807775497437,
+   "hits": 3697,
+   "misses": 13,
+   "hit_rate": 0.9964959568733154,
+   "read_ms": 166.29999999999927,
+   "text": "analysisWe need to answer: average speed = distance / time. 180 km / 2.5 h = 72 km/h. Show steps. Provide explanation.as"
+  },
+  {
+   "prompt": "Write the opening two sentences of a sho",
+   "tokens": 48,
+   "tok_s": 3.648,
+   "prefill_ms": 3539.0,
+   "wall_s": 16.657300233840942,
+   "hits": 3718,
+   "misses": 1,
+   "hit_rate": 0.9997311105135789,
+   "read_ms": 13.5,
+   "text": "analysisWe need to write opening two sentences of a short story set on a lighthouse during a storm. The prompt: \"Write t"
+  }
+ ],
+ "vault_gptoss_120b@9000": [
+  {
+   "prompt": "In one sentence, what is lossless compre",
+   "tokens": 48,
+   "tok_s": 1.885,
+   "prefill_ms": 14058.0,
+   "wall_s": 39.537492990493774,
+   "hits": 3628,
+   "misses": 3996,
+   "hit_rate": 0.4758656873032529,
+   "read_ms": 27866.4,
+   "text": "analysisUser asks: \"In one sentence, what is lossless compression?\" Need to answer in one sentence. Provide concise defi"
+  },
+  {
+   "prompt": "Explain in three sentences how a refrige",
+   "tokens": 48,
+   "tok_s": 2.05,
+   "prefill_ms": 12618.0,
+   "wall_s": 36.010260820388794,
+   "hits": 3149,
+   "misses": 3526,
+   "hit_rate": 0.47176029962546817,
+   "read_ms": 23963.1,
+   "text": "analysisWe need to answer in three sentences, explaining how a refrigerator works. Provide concise explanation.assistant"
+  },
+  {
+   "prompt": "Write a Python function that returns the",
+   "tokens": 48,
+   "tok_s": 1.986,
+   "prefill_ms": 13160.0,
+   "wall_s": 37.2715322971344,
+   "hits": 3297,
+   "misses": 3839,
+   "hit_rate": 0.46202354260089684,
+   "read_ms": 27040.5,
+   "text": "analysisWe need to write a Python function that returns the n-th Fibonacci number iteratively. Provide code, explanation"
+  },
+  {
+   "prompt": "List five tips for writing clear technic",
+   "tokens": 48,
+   "tok_s": 2.238,
+   "prefill_ms": 11960.0,
+   "wall_s": 33.45504713058472,
+   "hits": 2590,
+   "misses": 3200,
+   "hit_rate": 0.4473229706390328,
+   "read_ms": 21366.399999999994,
+   "text": "analysisThe user asks: \"List five tips for writing clear technical documentation.\" Straightforward. Provide five bullet "
+  },
+  {
+   "prompt": "A train travels 180 km in 2.5 hours. Wha",
+   "tokens": 48,
+   "tok_s": 2.065,
+   "prefill_ms": 13642.0,
+   "wall_s": 36.786665201187134,
+   "hits": 3211,
+   "misses": 3802,
+   "hit_rate": 0.4578639669185798,
+   "read_ms": 25623.90000000001,
+   "text": "analysisWe need to compute average speed = distance / time = 180 km / 2.5 h = 72 km/h. Show steps.assistantfinal**Step\u2011b"
+  },
+  {
+   "prompt": "Write the opening two sentences of a sho",
+   "tokens": 48,
+   "tok_s": 2.247,
+   "prefill_ms": 12672.0,
+   "wall_s": 34.053369998931885,
+   "hits": 2928,
+   "misses": 3312,
+   "hit_rate": 0.46923076923076923,
+   "read_ms": 21969.699999999997,
+   "text": "analysisWe need to write opening two sentences of a short story set on a lighthouse during a storm. Should be evocative,"
+  }
+ ],
+ "vault_gptoss_120b_mxf2@9000": [
+  {
+   "prompt": "In one sentence, what is lossless compre",
+   "tokens": 48,
+   "tok_s": 1.953,
+   "prefill_ms": 13714.0,
+   "wall_s": 38.28214454650879,
+   "hits": 3636,
+   "misses": 3951,
+   "hit_rate": 0.4792408066429419,
+   "read_ms": 26199.9,
+   "text": "analysisUser asks: \"In one sentence, what is lossless compression?\" Need to answer in one sentence. Provide concise defi"
+  },
+  {
+   "prompt": "Explain in three sentences how a refrige",
+   "tokens": 48,
+   "tok_s": 2.096,
+   "prefill_ms": 11906.0,
+   "wall_s": 34.75101017951965,
+   "hits": 3135,
+   "misses": 3466,
+   "hit_rate": 0.4749280412058779,
+   "read_ms": 22163.0,
+   "text": "analysisWe need to answer in three sentences, explaining how a refrigerator works. Provide concise explanation.assistant"
+  },
+  {
+   "prompt": "Write a Python function that returns the",
+   "tokens": 48,
+   "tok_s": 2.034,
+   "prefill_ms": 12377.0,
+   "wall_s": 35.87849998474121,
+   "hits": 3314,
+   "misses": 3795,
+   "hit_rate": 0.4661696441130961,
+   "read_ms": 25245.499999999993,
+   "text": "analysisWe need to write a Python function that returns the n-th Fibonacci number iteratively. Provide code, explanation"
+  },
+  {
+   "prompt": "List five tips for writing clear technic",
+   "tokens": 48,
+   "tok_s": 2.283,
+   "prefill_ms": 11316.0,
+   "wall_s": 32.42343759536743,
+   "hits": 2596,
+   "misses": 3163,
+   "hit_rate": 0.45077270359437405,
+   "read_ms": 19806.20000000001,
+   "text": "analysisThe user asks: \"List five tips for writing clear technical documentation.\" Straightforward. Provide five bullet "
+  },
+  {
+   "prompt": "A train travels 180 km in 2.5 hours. Wha",
+   "tokens": 48,
+   "tok_s": 2.111,
+   "prefill_ms": 12717.0,
+   "wall_s": 35.36742568016052,
+   "hits": 3227,
+   "misses": 3750,
+   "hit_rate": 0.4625197076107209,
+   "read_ms": 23767.29999999999,
+   "text": "analysisWe need to compute average speed = distance / time = 180 km / 2.5 h = 72 km/h. Show steps.assistantfinal**Step\u2011b"
+  },
+  {
+   "prompt": "Write the opening two sentences of a sho",
+   "tokens": 48,
+   "tok_s": 2.295,
+   "prefill_ms": 11957.0,
+   "wall_s": 32.889275550842285,
+   "hits": 2946,
+   "misses": 3251,
+   "hit_rate": 0.4753913183798612,
+   "read_ms": 20342.5,
+   "text": "analysisWe need to write opening two sentences of a short story set on a lighthouse during a storm. Should be evocative,"
+  }
+ ]
+}

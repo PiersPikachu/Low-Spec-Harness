@@ -1,0 +1,15 @@
+model.layers.0.mlp.experts.down_proj_blocks      codes H=3.871 b (per-expert 3.871, given scale 3.857, pairs 3.863/code)  scales H=2.28 of 8 b
+model.layers.0.mlp.experts.gate_up_proj_blocks   codes H=3.810 b (per-expert 3.800, given scale 3.768, pairs 3.802/code)  scales H=1.35 of 8 b
+model.layers.1.mlp.experts.down_proj_blocks      codes H=3.870 b (per-expert 3.870, given scale 3.850, pairs 3.862/code)  scales H=2.07 of 8 b
+model.layers.1.mlp.experts.gate_up_proj_blocks   codes H=3.850 b (per-expert 3.846, given scale 3.812, pairs 3.841/code)  scales H=1.43 of 8 b
+model.layers.10.mlp.experts.down_proj_blocks     codes H=3.854 b (per-expert 3.853, given scale 3.813, pairs 3.847/code)  scales H=1.40 of 8 b
+model.layers.10.mlp.experts.gate_up_proj_blocks  codes H=3.873 b (per-expert 3.872, given scale 3.849, pairs 3.864/code)  scales H=2.09 of 8 b
+model.layers.11.mlp.experts.down_proj_blocks     codes H=3.856 b (per-expert 3.855, given scale 3.800, pairs 3.847/code)  scales H=1.44 of 8 b
+model.layers.11.mlp.experts.gate_up_proj_blocks  codes H=3.873 b (per-expert 3.873, given scale 3.853, pairs 3.865/code)  scales H=2.15 of 8 b
+model.layers.12.mlp.experts.down_proj_blocks     codes H=3.852 b (per-expert 3.851, given scale 3.789, pairs 3.843/code)  scales H=1.44 of 8 b
+model.layers.12.mlp.experts.gate_up_proj_blocks  codes H=3.874 b (per-expert 3.874, given scale 3.852, pairs 3.866/code)  scales H=2.22 of 8 b
+model.layers.13.mlp.experts.down_proj_blocks     codes H=3.844 b (per-expert 3.843, given scale 3.798, pairs 3.837/code)  scales H=1.43 of 8 b
+model.layers.13.mlp.experts.gate_up_proj_blocks  codes H=3.874 b (per-expert 3.874, given scale 3.855, pairs 3.866/code)  scales H=2.30 of 8 b
+model.layers.14.mlp.experts.down_proj_blocks     codes H=3.851 b (per-expert 3.849, given scale 3.812, pairs 3.844/code)  scales H=1.46 of 8 b
+model.layers.14.mlp.experts.gate_up_proj_blocks  codes H=3.873 b (per-expert 3.873, given scale 3.853, pairs 3.865/code)  scales H=2.35 of 8 b
+model.layers.15.mlp.experts.down_proj_blocks     codes H=3.855 b (per-expert 3.853, given scale 3.803, pairs 3.845/code)  scales H=1.66 of 8 b

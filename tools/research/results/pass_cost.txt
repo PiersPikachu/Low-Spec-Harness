@@ -1,0 +1,12 @@
+gpu_layers=0 VERIFY   1:  11.99 s
+gpu_layers=0 VERIFY   9:  12.78 s
+gpu_layers=0 VERIFY  17:  13.34 s
+gpu_layers=0 VERIFY  33:  15.81 s
+gpu_layers=0 VERIFY  65:  21.22 s
+gpu_layers=0 VERIFY   1:  11.91 s
+gpu_layers=8 VERIFY   1:  10.79 s
+gpu_layers=8 VERIFY   9:  12.19 s
+gpu_layers=8 VERIFY  17:  13.83 s
+gpu_layers=8 VERIFY  33:  16.96 s
+gpu_layers=8 VERIFY  65:  24.69 s
+gpu_layers=8 VERIFY   1:  10.86 s

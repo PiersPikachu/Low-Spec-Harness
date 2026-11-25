@@ -1,0 +1,15 @@
+target ready (6s): vault_hermes14b_rans
+draft ready (6s): uni on gpu
+round   1: draft 8 kept 0 +1 -> 2 tokens  (  39.2s)  ' fibonacci'
+round   2: draft 8 kept 7 +1 -> 10 tokens  (  51.2s)  '(n):\n    if n <= 0'
+round   3: draft 8 kept 3 +1 -> 14 tokens  (  63.2s)  ':\n        return "'
+round   4: draft 8 kept 0 +1 -> 15 tokens  (  75.2s)  'Input'
+round   5: draft 8 kept 0 +1 -> 16 tokens  (  88.0s)  ' should'
+round   6: draft 8 kept 6 +1 -> 23 tokens  ( 100.2s)  ' be a positive integer."\n    elif'
+round   7: draft 8 kept 8 +1 -> 32 tokens  ( 112.4s)  ' n == 1:\n        return 0'
+round   8: draft 8 kept 8 +1 -> 41 tokens  ( 124.7s)  '\n    elif n == 2:\n       '
+round   9: draft 7 kept 7 +1 -> 49 tokens  ( 137.0s)  ' return 1\n    else:\n       '
+
+SPEC k=8 temp=0.7: 48 tokens in 137.0s = 2.85 s/token | prefill 26.6s | 9 target passes, 39/71 drafted tokens accepted (55%), 5.33 tokens per target pass | time in target 106.3s, in draft 3.3s
+TOKENS 750 75698 1445 982 262 421 308 2651 220 15 510 286 470 330 2505 1265 387 264 6785 7546 10040 262 4409 308 621 220 16 510 286 470 220 15 198 262 4409 308 621 220 17 510 286 470 220 16 198 262 770 510
+TEXT 'def fibonacci(n):\n    if n <= 0:\n        return "Input should be a positive integer."\n    elif n == 1:\n        return 0\n    elif n == 2:\n        return 1\n    else:\n'

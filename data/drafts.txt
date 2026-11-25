@@ -1,0 +1,1 @@
+# extra draft-model vaults for speculative decoding (one folder per line); vault_* folders next to chat.py are searched too

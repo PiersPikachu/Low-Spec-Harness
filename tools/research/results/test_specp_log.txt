@@ -1,0 +1,20 @@
+[vault] weight codec huffman4
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 03:04:26 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=3523
+[vault] dir=C:\Users\1fred\Desktop\AI\JEPA\_stage_memory\vault3 streams=37 layer_blob_MB(min/max/avg)=134.6/140.6/135.2 embed_or_lm_blob_MB=520.4 total_layer_MB=4868
+[model] hidden=2560 inter=9728 layers=36 heads=32 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=1 rope_theta=5000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x135MB sector=4096 prefill_batch=32 ctx=512 kv_cache_MB=151
+[resident] requested_MB=4500 pinned_streams=30 pinned_MB=4445 lm_head_pinned=1 streamed_MB_per_token=944
+[init] startup_s=1.46
+[exit] peak_working_set_MB=4527 ram_avail_MB=3251 total_generations=0
+[vault] weight codec huffman4
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 03:07:11 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=3524
+[vault] dir=C:\Users\1fred\Desktop\AI\JEPA\_stage_memory\vault3 streams=37 layer_blob_MB(min/max/avg)=134.6/140.6/135.2 embed_or_lm_blob_MB=520.4 total_layer_MB=4868
+[model] hidden=2560 inter=9728 layers=36 heads=32 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=1 rope_theta=5000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x135MB sector=4096 prefill_batch=32 ctx=512 kv_cache_MB=151
+[resident] requested_MB=4500 pinned_streams=30 pinned_MB=4445 lm_head_pinned=1 streamed_MB_per_token=944
+[init] startup_s=1.44
+[exit] peak_working_set_MB=4537 ram_avail_MB=3076 total_generations=0

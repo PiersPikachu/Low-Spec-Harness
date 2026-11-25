@@ -1,0 +1,2 @@
+exact: ppl 12.937 (25s)
+lb2@1.0    body bpp  0.999 | ppl 64609538.291 (exact 12.937) | top-1 agrees with exact   0.0% | matrix rel. error mean 0.644 max 0.717 | 463s

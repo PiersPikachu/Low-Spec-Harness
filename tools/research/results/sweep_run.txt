@@ -1,0 +1,19 @@
+engines ready
+[A] fact: 29 tokens, 10 passes after prefill, 4.72 s/token decode | 'Lossless compression is a data compression method that allows the original data to be perfectly reconstructed
+[A] explain: 48 tokens, 16 passes after prefill, 4.52 s/token decode | 'A refrigerator keeps food cold by using a refrigeration cycle that involves a compressor, condenser, expansio
+[A] code: 48 tokens, 12 passes after prefill, 3.40 s/token decode | 'def fibonacci(n):\n    if n <= 0:\n        return 0\n    elif n == 1:\n        return 1\n    else:\n        a
+[A] list: 48 tokens, 19 passes after prefill, 5.35 s/token decode | 'Here are five tips for writing clear technical documentation:\n\n1. Know your audience: Understand the techni
+[A] math: 48 tokens, 13 passes after prefill, 3.78 s/token decode | 'To find the average speed of the train, we need to divide the total distance traveled by the total time taken
+[A] story: 45 tokens, 19 passes after prefill, 5.80 s/token decode | 'The howling wind whipped around the lighthouse, threatening to tear the ancient structure from its foundation
+[B] VERIFY 1: 12.83s
+[B] VERIFY 2: 12.97s
+[B] VERIFY 3: 12.92s
+[B] VERIFY 4: 13.01s
+[B] VERIFY 5: 13.09s
+[B] VERIFY 6: 13.38s
+[B] VERIFY 7: 13.36s
+[B] VERIFY 8: 13.57s
+[B] VERIFY 9: 13.55s
+[B] VERIFY 1: 12.92s
+[B] VERIFY 5: 13.24s
+[B] VERIFY 9: 13.49s

@@ -1,0 +1,266 @@
+{
+ "release_tag": "gpt-oss-vaults-v1",
+ "part_bytes": 1992294400,
+ "vaults": {
+  "vault_gptoss_20b_mxf2": {
+   "vault_bin_size": 12255551488,
+   "vault_bin_sha256": "7789628a22e5736510b6849dd413a4ef09d4fc17ada730c8e79c939b7a926188",
+   "parts": [
+    {
+     "asset": "vault_gptoss_20b_mxf2.vault.bin.part000",
+     "offset": 0,
+     "size": 1992294400,
+     "sha256": "4424cc6777a6c066ba42e332babd5f58bedcb887ad3451de8b7cafe776aa968d"
+    },
+    {
+     "asset": "vault_gptoss_20b_mxf2.vault.bin.part001",
+     "offset": 1992294400,
+     "size": 1992294400,
+     "sha256": "c579b9948ed24880bb30d03479a301e12f679b063de3172971396388d96ba9ed"
+    },
+    {
+     "asset": "vault_gptoss_20b_mxf2.vault.bin.part002",
+     "offset": 3984588800,
+     "size": 1992294400,
+     "sha256": "fd6bc855c457e6cf914dfa26c4099fbf137716c530ee44ceb5acd2ccf5922a03"
+    },
+    {
+     "asset": "vault_gptoss_20b_mxf2.vault.bin.part003",
+     "offset": 5976883200,
+     "size": 1992294400,
+     "sha256": "bc345866b093529177cc0be6465e5cf9ac8b62426d71d15a60a5664ca221d445"
+    },
+    {
+     "asset": "vault_gptoss_20b_mxf2.vault.bin.part004",
+     "offset": 7969177600,
+     "size": 1992294400,
+     "sha256": "da862abb1f5b4e95f37ee7cfec46244170987db59b34419ea82eb8e825af9e9e"
+    },
+    {
+     "asset": "vault_gptoss_20b_mxf2.vault.bin.part005",
+     "offset": 9961472000,
+     "size": 1992294400,
+     "sha256": "331b9f3efb7519afdf6ab002b1206a3b74d4dba5042f0392f7d6d2e71794738e"
+    },
+    {
+     "asset": "vault_gptoss_20b_mxf2.vault.bin.part006",
+     "offset": 11953766400,
+     "size": 301785088,
+     "sha256": "823926c2e921c1a7a33302597ea49da972b7b0d4bcb973c18aafbf15ada0a954"
+    }
+   ],
+   "files": [
+    "vault.idx",
+    "vault.json",
+    "resident.bin",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "special_tokens_map.json",
+    "chat_template.jinja",
+    "generation_config.json"
+   ]
+  },
+  "vault_gptoss_120b_mxf2": {
+   "vault_bin_size": 61559853056,
+   "vault_bin_sha256": "cc08d15fb88db06b690cea687039f2ce33f90f7e3c39de397689f9b857b5b24d",
+   "parts": [
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part000",
+     "offset": 0,
+     "size": 1992294400,
+     "sha256": "02c5f94d32746ff7421e3e21ee223d0384c15242662306d8f97ce6ccc84680e5"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part001",
+     "offset": 1992294400,
+     "size": 1992294400,
+     "sha256": "0059714dd8cfb2d21fb0ea66c9dc59c848af4171d7a12115051b451112e6e933"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part002",
+     "offset": 3984588800,
+     "size": 1992294400,
+     "sha256": "49a0f46dc0a3381859a30cb82e5f50e94d088cd91da3d8ab32b90867844c4d82"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part003",
+     "offset": 5976883200,
+     "size": 1992294400,
+     "sha256": "1dcf79a17dbe9ab7f1343b78a255f794ba892f4f9d1f1e261829e65c1b2291cc"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part004",
+     "offset": 7969177600,
+     "size": 1992294400,
+     "sha256": "e07ccd5aeed37cca8aeed5fbe8415220c8a9986f0466f7389da55ed475454c09"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part005",
+     "offset": 9961472000,
+     "size": 1992294400,
+     "sha256": "31dcc96ae5d715ff4a6480a9b723298b8b8c24646d2fcff7fc792ecf476ae669"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part006",
+     "offset": 11953766400,
+     "size": 1992294400,
+     "sha256": "7e2f78d25c1b4660e75c44c2e98cb39f8074293e69d04ef32803442711191def"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part007",
+     "offset": 13946060800,
+     "size": 1992294400,
+     "sha256": "b27809a31b85fbe37b47ea1e1ae5d9889855b2a483b1fae95e580edb98ce8077"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part008",
+     "offset": 15938355200,
+     "size": 1992294400,
+     "sha256": "08021d257af8ae3da75cb994e497ec001b213b53bbc5a739e60c5ff7027975af"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part009",
+     "offset": 17930649600,
+     "size": 1992294400,
+     "sha256": "6e5a7ba5a81689aca78d4230948b6b04050589a712228659024900a88694b805"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part010",
+     "offset": 19922944000,
+     "size": 1992294400,
+     "sha256": "9033658255b0817cd5fb2aa0bc9bd5ce64b66a71d076b09e393b8ad5c9027f2f"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part011",
+     "offset": 21915238400,
+     "size": 1992294400,
+     "sha256": "7dd8cebf35d4893efbe555798d4596ca6cf34c67226aa24b49f595fda20225a2"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part012",
+     "offset": 23907532800,
+     "size": 1992294400,
+     "sha256": "2958bf2158279df99bb62e3b31e7bb21acd4c7c5ab5d06c84fb2da08cd2eda10"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part013",
+     "offset": 25899827200,
+     "size": 1992294400,
+     "sha256": "aedcc07f73574219b82d080e871ed02e5236858512405200bae181f922c7f71c"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part014",
+     "offset": 27892121600,
+     "size": 1992294400,
+     "sha256": "4e9d2fa093019cc8f052d2dde1b1fbe25b3e92afe6ce86a2b7845174a56c3531"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part015",
+     "offset": 29884416000,
+     "size": 1992294400,
+     "sha256": "07945e694982f5687de94f3392b1a4da0ac8559cb47c4e97f7e1930e021a4715"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part016",
+     "offset": 31876710400,
+     "size": 1992294400,
+     "sha256": "2303824cba9a53c4fd31b81f9586731730f5b2429b6a706b292897cacc164b4e"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part017",
+     "offset": 33869004800,
+     "size": 1992294400,
+     "sha256": "e785ef2f282a909a35fd0912ce656e819ae73f52917f0efb2b0ba1139d1e2566"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part018",
+     "offset": 35861299200,
+     "size": 1992294400,
+     "sha256": "7401abef64a411766c06ad51c4e9ced0bd2a878df4efa911e9c0dd621c4f07bb"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part019",
+     "offset": 37853593600,
+     "size": 1992294400,
+     "sha256": "abeaba4268cd4dffa56b786d5cafa295367838a57f080a56ce22d7f8c71ad121"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part020",
+     "offset": 39845888000,
+     "size": 1992294400,
+     "sha256": "14e55b848752d4ce70ae1df335fd3a8c76be543886223c3f3ac83d6b24e887e1"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part021",
+     "offset": 41838182400,
+     "size": 1992294400,
+     "sha256": "7e7fef7ec558b9d6505af3b8ba2fee32a3d8a3dc59feb13247c9ad080da62589"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part022",
+     "offset": 43830476800,
+     "size": 1992294400,
+     "sha256": "1c3c36242b1984ecd7dfd51c4ffee8a8f9e09c0ff498b1a060930411fb507a26"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part023",
+     "offset": 45822771200,
+     "size": 1992294400,
+     "sha256": "932683f6f7850db24c94758ddfed63a07acc589f3c0449296ab991ce7d4e2042"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part024",
+     "offset": 47815065600,
+     "size": 1992294400,
+     "sha256": "31025c58ce9aa7e8e421e018b21c35f6ba1d8e6be11902f246b0898179e7a72f"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part025",
+     "offset": 49807360000,
+     "size": 1992294400,
+     "sha256": "59787b3994616ca3b3e54e57ab23c3ceb8fc56bcfb772f6325e8caa362136d5a"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part026",
+     "offset": 51799654400,
+     "size": 1992294400,
+     "sha256": "9002df839150c158a6a0255909adc68e6d12f395834e8349dafd28dfe06c0965"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part027",
+     "offset": 53791948800,
+     "size": 1992294400,
+     "sha256": "7eb37de46ec769d6dd48eea998264b53b49f02e7b54b9b4978c5c53ff0e1a290"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part028",
+     "offset": 55784243200,
+     "size": 1992294400,
+     "sha256": "5be5e78bf68fd78fdbfa33fee97d912772eae4998f55f6990b5d7029ec62cb33"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part029",
+     "offset": 57776537600,
+     "size": 1992294400,
+     "sha256": "3d4785c22bba6f649da4f20442cfdac07ec6b52947f37097c6177ea8282b58e2"
+    },
+    {
+     "asset": "vault_gptoss_120b_mxf2.vault.bin.part030",
+     "offset": 59768832000,
+     "size": 1791021056,
+     "sha256": "429e29cdc0f8f0975c03d20577f329019a848c7586eac90e98884e4c30a3ea6e"
+    }
+   ],
+   "files": [
+    "vault.idx",
+    "vault.json",
+    "resident.bin",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "special_tokens_map.json",
+    "chat_template.jinja",
+    "generation_config.json"
+   ]
+  }
+ }
+}

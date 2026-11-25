@@ -1,0 +1,82 @@
+[vault] weight codec rans4 (cube-rANS)
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 11:49:21 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=3929
+[vault] dir=C:\Users\1fred\Desktop\AI\Hermes\cube-harness\vault_hermes14b_rans streams=42 layer_blob_MB(min/max/avg)=433.3/467.8/437.4 embed_or_lm_blob_MB=1034.6 total_layer_MB=17496
+[model] hidden=5120 inter=17408 layers=40 heads=40 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=0 rope_theta=1000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x1035MB sector=4096 prefill_batch=128 ctx=1024 kv_cache_MB=336
+[resident] requested_MB=5500 pinned_streams=11 pinned_MB=5398 lm_head_pinned=1 streamed_MB_per_token=14165
+[init] startup_s=3.74
+[exit] peak_working_set_MB=6135 ram_avail_MB=3030 total_generations=0
+[vault] weight codec rans4 (cube-rANS)
+[split] GPU worker runs layers 0..7 (C:\Users\1fred\Desktop\AI\Hermes\cube-harness\gpu\gpu_engine.exe); this process runs layers 8..39 + final norm + lm_head
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 11:51:10 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=3950
+[vault] dir=C:\Users\1fred\Desktop\AI\Hermes\cube-harness\vault_hermes14b_rans streams=42 layer_blob_MB(min/max/avg)=433.3/467.8/437.4 embed_or_lm_blob_MB=1034.6 total_layer_MB=17496
+[model] hidden=5120 inter=17408 layers=40 heads=40 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=0 rope_theta=1000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x1035MB sector=4096 prefill_batch=128 ctx=1024 kv_cache_MB=336
+[resident] requested_MB=5500 pinned_streams=11 pinned_MB=5372 lm_head_pinned=1 streamed_MB_per_token=14191
+[init] startup_s=5.78
+[exit] peak_working_set_MB=6041 ram_avail_MB=3023 total_generations=0
+[vault] weight codec rans4 (cube-rANS)
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 11:54:57 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=3096
+[vault] dir=C:\Users\1fred\Desktop\AI\Hermes\cube-harness\vault_hermes14b_rans streams=42 layer_blob_MB(min/max/avg)=433.3/467.8/437.4 embed_or_lm_blob_MB=1034.6 total_layer_MB=17496
+[model] hidden=5120 inter=17408 layers=40 heads=40 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=0 rope_theta=1000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=4 io_chunk_MB=16 buffers=2x1035MB sector=4096 prefill_batch=128 ctx=1024 kv_cache_MB=336
+[resident] requested_MB=5500 pinned_streams=11 pinned_MB=5398 lm_head_pinned=1 streamed_MB_per_token=14165
+[init] startup_s=1.99
+[exit] peak_working_set_MB=6096 ram_avail_MB=2073 total_generations=0
+[vault] weight codec rans4 (cube-rANS)
+[resident] requested 7500 MB exceeds free RAM minus 1.5 GB reserve; clamped to 6987 MB
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 11:56:04 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=1750
+[vault] dir=C:\Users\1fred\Desktop\AI\Hermes\cube-harness\vault_hermes14b_rans streams=42 layer_blob_MB(min/max/avg)=433.3/467.8/437.4 embed_or_lm_blob_MB=1034.6 total_layer_MB=17496
+[model] hidden=5120 inter=17408 layers=40 heads=40 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=0 rope_theta=1000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x1035MB sector=4096 prefill_batch=128 ctx=1024 kv_cache_MB=336
+[resident] requested_MB=7500 pinned_streams=14 pinned_MB=6732 lm_head_pinned=1 streamed_MB_per_token=12830
+[init] startup_s=2.17
+[exit] peak_working_set_MB=7366 ram_avail_MB=1439 total_generations=0
+[vault] weight codec rans4 (cube-rANS)
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 11:57:15 ===
+[system] os=windows logical_cpus=16 engine_threads=12 ram_total_MB=15791 ram_avail_MB=3633
+[vault] dir=C:\Users\1fred\Desktop\AI\Hermes\cube-harness\vault_hermes14b_rans streams=42 layer_blob_MB(min/max/avg)=433.3/467.8/437.4 embed_or_lm_blob_MB=1034.6 total_layer_MB=17496
+[model] hidden=5120 inter=17408 layers=40 heads=40 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=0 rope_theta=1000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=4 io_chunk_MB=16 buffers=2x1035MB sector=4096 prefill_batch=128 ctx=1024 kv_cache_MB=336
+[resident] requested_MB=5500 pinned_streams=11 pinned_MB=5398 lm_head_pinned=1 streamed_MB_per_token=14165
+[init] startup_s=1.81
+[exit] peak_working_set_MB=6092 ram_avail_MB=2689 total_generations=0
+[vault] weight codec rans4 (cube-rANS)
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 12:02:59 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=3619
+[vault] dir=C:\Users\1fred\Desktop\AI\Hermes\cube-harness\vault_hermes14b_rans streams=42 layer_blob_MB(min/max/avg)=433.3/467.8/437.4 embed_or_lm_blob_MB=1034.6 total_layer_MB=17496
+[model] hidden=5120 inter=17408 layers=40 heads=40 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=0 rope_theta=1000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x1035MB sector=4096 prefill_batch=128 ctx=1024 kv_cache_MB=336
+[resident] requested_MB=5500 pinned_streams=11 pinned_MB=5398 lm_head_pinned=1 streamed_MB_per_token=14165
+[init] startup_s=2.34
+[exit] peak_working_set_MB=6102 ram_avail_MB=3117 total_generations=0
+[vault] weight codec huffman4
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 12:17:50 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=3793
+[vault] dir=C:\Users\1fred\Desktop\AI\Hermes\cube-harness\vault_hermes14b_huff streams=42 layer_blob_MB(min/max/avg)=435.4/470.2/439.7 embed_or_lm_blob_MB=1040.0 total_layer_MB=17587
+[model] hidden=5120 inter=17408 layers=40 heads=40 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=0 rope_theta=1000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x1040MB sector=4096 prefill_batch=128 ctx=1024 kv_cache_MB=336
+[resident] requested_MB=5500 pinned_streams=11 pinned_MB=5427 lm_head_pinned=1 streamed_MB_per_token=14238
+[init] startup_s=3.01
+[exit] peak_working_set_MB=6126 ram_avail_MB=2902 total_generations=0
+[vault] weight codec huffman4
+
+=== NVME STREAM LOG v1 | mode=serve | 2026-11-23 12:38:24 ===
+[system] os=windows logical_cpus=16 engine_threads=14 ram_total_MB=15791 ram_avail_MB=3306
+[vault] dir=C:\Users\1fred\Desktop\AI\Hermes\cube-harness\vault_hermes14b_huff streams=42 layer_blob_MB(min/max/avg)=435.4/470.2/439.7 embed_or_lm_blob_MB=1040.0 total_layer_MB=17587
+[model] hidden=5120 inter=17408 layers=40 heads=40 kv_heads=8 head_dim=128 vocab=151936 tie_embeddings=0 rope_theta=1000000 eps=1e-06
+[stream-config] direct_io_requested=1 direct_io_active=1 io_threads=2 io_chunk_MB=8 buffers=2x1040MB sector=4096 prefill_batch=128 ctx=1024 kv_cache_MB=336
+[resident] requested_MB=5500 pinned_streams=11 pinned_MB=5427 lm_head_pinned=1 streamed_MB_per_token=14238
+[init] startup_s=1.61
+[exit] peak_working_set_MB=6132 ram_avail_MB=2516 total_generations=0

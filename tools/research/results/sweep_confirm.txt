@@ -1,0 +1,2 @@
+[confirm k=8] explain: 48 tokens, 13 passes, 3.52 s/token decode, output IDENTICAL to the k=4 run
+[confirm k=8] code: 48 tokens, 8 passes, 2.19 s/token decode, output IDENTICAL to the k=4 run

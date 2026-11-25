@@ -1,0 +1,5 @@
+[cost gpu_layers=0] VERIFY 1: 4.72s
+[cost gpu_layers=0] VERIFY 5: 4.87s
+[cost gpu_layers=0] VERIFY 9: 4.94s
+[confirm k=8] explain: 48 tokens, 13 passes, 1.46 s/token decode, output IDENTICAL to the k=4 run
+[confirm k=8] code: 48 tokens, 8 passes, 0.90 s/token decode, output IDENTICAL to the k=4 run

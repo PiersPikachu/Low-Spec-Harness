@@ -1,0 +1,35 @@
+# --- your own data stays on this machine ---
+data/vaults/
+data/conversations/
+data/artifacts/
+data/workspace/
+data/logs/
+data/hub_cache/
+data/packages/
+data/downloads/
+data/harness_config.json
+data/hw_profile*.json
+data/drive_info.json
+data/plugins/pending/
+data/skills/*
+!data/skills/tool-calls.md
+# model vaults: published as release parts, fetched by models/gpt-oss/fetch.bat
+**/vault.bin
+**/*.download
+models/gpt-oss/**/tuned.json
+# large test data and third-party files
+tests/data/
+tools/research/models/
+tools/research/wsp/
+tools/research/_tmp_q4/
+# build and Python leftovers
+__pycache__/
+*.pyc
+*.err
+engine/*.lib
+engine/*.exp
+engine/gpu/*.lib
+engine/gpu/*.exp
+engine/gpu/*.obj
+engine/nvme_engine_u.before_*.c
+nvme_stream_log*.txt

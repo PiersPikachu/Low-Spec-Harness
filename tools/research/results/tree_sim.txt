@@ -1,0 +1,7 @@
+chain k=8   :  3.51 tokens per 14B pass (74 passes for 260 tokens)  [498s]
+tree 1      :  1.72 tokens per 14B pass (151 passes for 260 tokens)  [5s]
+tree 4      :  3.02 tokens per 14B pass (86 passes for 260 tokens)  [62s]
+tree 8      :  3.82 tokens per 14B pass (68 passes for 260 tokens)  [128s]
+tree 16     :  4.64 tokens per 14B pass (56 passes for 260 tokens)  [288s]
+tree 32     :  5.31 tokens per 14B pass (49 passes for 260 tokens)  [594s]
+tree 64     :  5.65 tokens per 14B pass (46 passes for 260 tokens)  [1258s]

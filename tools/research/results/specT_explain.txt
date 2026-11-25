@@ -1,0 +1,21 @@
+target ready (8s): vault_hermes14b_rans
+draft ready (7s): uni on gpu
+round   1: draft 8 kept 8 +1 -> 10 tokens  (  39.4s)  ' refrigerator keeps food cold by using a refrigerant'
+round   2: draft 8 kept 5 +1 -> 16 tokens  (  51.3s)  ' that absorbs heat from the interior'
+round   3: draft 8 kept 0 +1 -> 17 tokens  (  63.3s)  ' of'
+round   4: draft 8 kept 2 +1 -> 20 tokens  (  75.3s)  ' the fridge and'
+round   5: draft 8 kept 2 +1 -> 23 tokens  (  87.3s)  ' releases it outside'
+round   6: draft 8 kept 0 +1 -> 24 tokens  (  99.6s)  '.'
+round   7: draft 8 kept 0 +1 -> 25 tokens  ( 111.7s)  ' The'
+round   8: draft 8 kept 5 +1 -> 31 tokens  ( 123.7s)  ' refrigerant circulates through a'
+round   9: draft 8 kept 0 +1 -> 32 tokens  ( 135.8s)  ' closed'
+round  10: draft 8 kept 2 +1 -> 35 tokens  ( 147.7s)  ' system, changing'
+round  11: draft 8 kept 0 +1 -> 36 tokens  ( 159.8s)  ' from'
+round  12: draft 8 kept 5 +1 -> 42 tokens  ( 171.7s)  ' a liquid to a gas as'
+round  13: draft 6 kept 1 +1 -> 44 tokens  ( 183.3s)  ' it absorbs'
+round  14: draft 4 kept 1 +1 -> 46 tokens  ( 194.7s)  ' heat,'
+round  15: draft 2 kept 2 +1 -> 49 tokens  ( 205.5s)  ' and then back'
+
+SPEC k=8 temp=0.7: 48 tokens in 205.5s = 4.28 s/token | prefill 26.9s | 15 target passes, 33/108 drafted tokens accepted (31%), 3.20 tokens per target pass | time in target 173.0s, in draft 4.8s
+TOKENS 32 44944 13598 3607 9255 553 1667 264 29377 517 429 90011 8628 504 279 14791 315 279 37581 323 19232 432 4889 13 576 29377 517 4225 23156 1526 264 7877 1849 11 10018 504 264 14473 311 264 6819 438 432 90011 8628 11 323 1221
+TEXT 'A refrigerator keeps food cold by using a refrigerant that absorbs heat from the interior of the fridge and releases it outside. The refrigerant circulates through a closed system, changing from a liquid to a gas as it absorbs heat, and then'

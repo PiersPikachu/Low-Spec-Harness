@@ -1,0 +1,3 @@
+exact: ppl 12.937 (25s)
+rtn4       body bpp  4.250 | ppl     18.264 (exact 12.937) | top-1 agrees with exact  71.2% | matrix rel. error mean 0.122 max 0.134 | 30s
+rtn2       body bpp  2.250 | ppl 64902767.196 (exact 12.937) | top-1 agrees with exact   0.0% | matrix rel. error mean 0.771 max 0.786 | 30s

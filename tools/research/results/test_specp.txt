@@ -1,0 +1,7 @@
+PASS logic: 3-token joint law equals the target chain (k=3, disjoint supports): n=200000 total-variation 0.0064, chi2 77.5 on 79 dof, p=0.528
+context ends '\nHere are three fruits I': target row 3 tokens (top ' particularly' 0.484), draft row 3 tokens (top ' can' 0.714), overlap 1
+PASS real rows: emitted token ~ target distribution (Qwen3-4B / Qwen3-0.6B, temp 0.7): n=200000 total-variation 0.0008, chi2 0.9 on 2 dof, p=0.631
+PASS draft samples follow the distribution DRAFTP reports: n=1500 total-variation 0.0180, chi2 4.5 on 2 dof, p=0.103
+PASS greedy (temp 0) through the sampling path: SPEC k=8 temp=0.0: 48 tokens in 20.8s = 0.43 s/token | prefill 1.5s | 19 target passes, 29/135 drafted tokens accepted (21%), 2.53 tokens per target pass | time in target 16.6s, in draft 2.4s | MATCH vs reference: first 48 tokens IDENTICAL
+
+SPECULATIVE SAMPLING TESTS PASSED
