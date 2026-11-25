@@ -17,14 +17,17 @@ gh auth status >nul 2>nul || gh auth login || (pause & exit /b 1)
 echo.
 echo [1/2] pushing the harness code ...
 if not exist .git (
+  rem first run only: start on top of the repository's existing history (keeps its LICENSE commit)
   git init -b main || goto :fail
   git remote add origin https://github.com/PiersPikachu/Low-Spec-Harness.git || goto :fail
+  git fetch origin main || goto :fail
+  git reset origin/main >nul
+  git checkout -- LICENSE 2>nul
 )
-git fetch origin main || goto :fail
-git reset origin/main >nul
-git checkout -- LICENSE 2>nul
 git add -A || goto :fail
-git commit -m "Cube Harness: app, engine, tools, tests, gpt-oss vault manifests" || echo (nothing new to commit)
+git diff --cached --quiet || git commit -m "Update Cube Harness" || goto :fail
+rem pick up anything committed on GitHub since the last run, then push
+git pull --rebase origin main || goto :fail
 git push -u origin main || goto :fail
 
 echo.

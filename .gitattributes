@@ -1,0 +1,9 @@
+# Model files are byte-exact copies of the originals: never convert line endings
+# (chat_template.jinja is rendered into every prompt; a CRLF version changes the prompt)
+models/** -text
+*.bin binary
+*.exe binary
+*.dll binary
+*.pt binary
+# Windows batch files must keep CRLF (cmd can mis-parse labels and goto with LF-only files)
+*.bat text eol=crlf
