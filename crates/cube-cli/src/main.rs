@@ -10,7 +10,10 @@ const USAGE: &str = "usage:
   cube info <vault>                     model description and streams
   cube check <vault> [--decode]         verify every stream checksum (--decode: also decode every matrix)
   cube convert <vault>                  write vault.cv8 next to a v3-v7 vault (streams untouched)
-  cube reencode <vault>                 re-encode every matrix and compare with the stored bytes (codec parity)";
+  cube reencode <vault>                 re-encode every matrix and compare with the stored bytes (codec parity)
+  cube pack <model_dir> <vault> [--rans4] [--mxf4] [--convert-matrices]
+                                        pack a Hugging Face checkpoint (lossless; --convert-matrices rounds F16/F32 to bf16)
+  cube verify-source <vault> <model_dir>   compare every tensor of a vault with its source checkpoint";
 
 fn main() {
     if let Err(e) = run() {
@@ -31,6 +34,40 @@ fn run() -> Result<()> {
             Ok(())
         }
         Some("reencode") => reencode(a.get(2).context(USAGE)?),
+        Some("pack") => {
+            let (m, o) = (a.get(2).context(USAGE)?, a.get(3).context(USAGE)?);
+            let opt = cube_pack::Options {
+                codec: if a.iter().any(|x| x == "--rans4") { Codec::Rans4 } else { Codec::Huff4 },
+                convert: a.iter().any(|x| x == "--convert-matrices"),
+                mxf2: !a.iter().any(|x| x == "--mxf4"),
+                repo: None,
+            };
+            let t0 = Instant::now();
+            let r = cube_pack::pack(std::path::Path::new(m), std::path::Path::new(o), &opt, &|s: &str| eprint!("\r{s}      "))?;
+            eprintln!();
+            println!(
+                "packed {:?}: {} streams, raw {:.1} MB -> {:.1} MB ({:.4}), lossy={}, {:.1}s",
+                r.arch, r.streams, r.raw as f64 / 1e6, r.stored as f64 / 1e6, r.stored as f64 / r.raw.max(1) as f64, r.lossy, t0.elapsed().as_secs_f64()
+            );
+            Ok(())
+        }
+        Some("yarn") => {
+            let c: serde_json::Value = serde_json::from_slice(&std::fs::read(a.get(2).context(USAGE)?)?)?;
+            let hd = c["head_dim"].as_u64().context("head_dim")? as usize;
+            let (inv, att) = cube_pack::yarn(&c, hd)?;
+            println!("{att:.17}");
+            println!("{}", inv.iter().map(|x| format!("{:08x}", x.to_bits())).collect::<Vec<_>>().join(" "));
+            Ok(())
+        }
+        Some("verify-source") => {
+            let v = Vault::open(a.get(2).context(USAGE)?)?;
+            let (n, bad) = cube_pack::verify_against_source(&v, std::path::Path::new(a.get(3).context(USAGE)?))?;
+            println!("verify-source: {n} tensors compared, {bad} mismatches");
+            if bad > 0 {
+                bail!("{bad} mismatches");
+            }
+            Ok(())
+        }
         _ => {
             println!("{USAGE}");
             Ok(())

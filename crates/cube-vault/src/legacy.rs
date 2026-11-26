@@ -175,6 +175,7 @@ pub fn read_idx(dir: &Path) -> Result<Legacy> {
         lm_head_stream: if tie { layers } else { layers + 1 },
         lossy: false,
         source: Source { repo: None, packer: format!("legacy WVAULT {ver}"), converted_from: Some(ver) },
+        tensors: Vec::new(),
     };
     Ok(Legacy { version: ver, meta, streams, rope_inv })
 }
@@ -184,6 +185,33 @@ pub fn read_resident(dir: &Path, want: usize) -> Result<Vec<f32>> {
     let b = std::fs::read(dir.join("resident.bin")).context("resident.bin missing")?;
     ensure!(b.len() >= 4 * want, "resident.bin has {} values, the model needs {want}", b.len() / 4);
     Ok(b[..4 * want].chunks_exact(4).map(|c| f32::from_le_bytes(c.try_into().unwrap())).collect())
+}
+
+/// The per-tensor table of a v3/v4/v6 `vault.json` (gpt-oss v7 packs have none).
+pub fn read_tensors(dir: &Path) -> Vec<TensorRef> {
+    let Some(v) = std::fs::read(dir.join("vault.json")).ok().and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok()) else {
+        return Vec::new();
+    };
+    let Some(ts) = v.get("tensors").and_then(|t| t.as_array()) else { return Vec::new() };
+    ts.iter()
+        .filter_map(|t| {
+            let store = t.get("store")?.as_str()?;
+            let u = |k: &str| t.get(k).and_then(|x| x.as_u64()).map(|x| x as usize);
+            Some(TensorRef {
+                name: t.get("name")?.as_str()?.to_string(),
+                shape: t.get("shape")?.as_array()?.iter().filter_map(|x| x.as_u64().map(|x| x as usize)).collect(),
+                src_dtype: t.get("src_dtype").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+                store: match store {
+                    "resident_f32" => "resident".into(),
+                    s => s.into(),
+                },
+                stream: u("stream"),
+                sub: u("sub"),
+                resident: if store == "resident_f32" { Some((u("res_off")?, u("count")?)) } else { None },
+                alias_of: t.get("alias_of").and_then(|x| x.as_str()).map(String::from),
+            })
+        })
+        .collect()
 }
 
 /// `lossy` flag from `vault.json`, when present.

@@ -122,6 +122,27 @@ pub struct ModelMeta {
     pub lm_head_stream: usize,
     pub lossy: bool,
     pub source: Source,
+    /// where every source tensor went (absent in vaults converted from v3-v7 gpt-oss packs)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tensors: Vec<TensorRef>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TensorRef {
+    pub name: String,
+    pub shape: Vec<usize>,
+    pub src_dtype: String,
+    /// "huff4" | "rans4" | "mxf2" | "mxf4" | "f32" (sub-blob in a stream) | "resident" | "alias"
+    pub store: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stream: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sub: Option<usize>,
+    /// offset and count in `RESI`
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resident: Option<(usize, usize)>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub alias_of: Option<String>,
 }
 
 impl ModelMeta {

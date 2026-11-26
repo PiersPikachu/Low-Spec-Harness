@@ -1,0 +1,15 @@
+[package]
+name = "cube-pack"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Pack Hugging Face safetensors checkpoints into Cube v8 vaults (lossless)"
+
+[dependencies]
+cube-vault = { path = "../cube-vault" }
+anyhow.workspace = true
+rayon.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+memmap2 = "0.9"
+regex = "1"

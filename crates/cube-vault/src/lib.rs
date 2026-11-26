@@ -57,6 +57,7 @@ pub fn manifest_from_legacy(dir: &Path) -> Result<(Manifest, u32)> {
     let lg = legacy::read_idx(dir)?;
     let mut meta = lg.meta;
     meta.lossy = legacy::read_lossy(dir);
+    meta.tensors = legacy::read_tensors(dir);
     let resident = legacy::read_resident(dir, meta.resident_len())?;
     if meta.arch == Arch::Gptoss {
         ensure!(lg.rope_inv.len() == meta.head_dim / 2, "gpt-oss vault.idx: rope_inv has {} values, need {}", lg.rope_inv.len(), meta.head_dim / 2);
