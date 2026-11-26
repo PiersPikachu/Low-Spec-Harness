@@ -586,7 +586,22 @@ mod tests {
         }
     }
     #[test]
-    fn ldexp_half() {
+    fn dot8_simd_matches_scalar() {
+        let mut st = 12345u64;
+        let mut r = || {
+            st ^= st << 13;
+            st ^= st >> 7;
+            st ^= st << 17;
+            ((st >> 40) as f32 / 16777216.0 - 0.5) * 3.0
+        };
+        for n in [1usize, 7, 8, 9, 31, 1000, 1027] {
+            let w: Vec<f32> = (0..n).map(|_| r()).collect();
+            let x: Vec<f32> = (0..n).map(|_| r()).collect();
+            assert_eq!(dot8(&w, &x).to_bits(), dot8_scalar(&w, &x).to_bits(), "n={n}");
+        }
+    }
+    #[test]
+    fn ldexp_half_exact() {
         for s in 0..=255u8 {
             let want = 0.5f64 * 2f64.powi(s as i32 - 127);
             assert_eq!(ldexp_half(s) as f64, want, "s={s}");
