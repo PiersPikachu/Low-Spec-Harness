@@ -18,6 +18,7 @@ const USAGE: &str = "usage:
                                         run the engine on the nvme_engine_u line protocol (stdin/stdout)
   cube chat <vault> [--prompt TEXT] [--tools a,b] [--think] [--max-new N] [--ctx N] [--greedy] [--seed N]
                                         talk to a model (with tools); without --prompt reads lines from stdin
+  cube gpu-check <vault> [--ctx N] [--tokens N] [--layers N]   GPU engine vs CPU engine: logits, hidden states, greedy text, speed
   cube bench <vault> [--prompt N] [--tokens N] [serve options]   greedy prefill + decode timing";
 
 fn main() {
@@ -67,6 +68,7 @@ fn run() -> Result<()> {
         Some("serve") => serve(&a),
         Some("bench") => bench(&a),
         Some("chat") => chat(&a),
+        Some("gpu-check") => gpu_check(&a),
         Some("verify-source") => {
             let v = Vault::open(a.get(2).context(USAGE)?)?;
             let (n, bad) = cube_pack::verify_against_source(&v, std::path::Path::new(a.get(3).context(USAGE)?))?;
@@ -364,6 +366,82 @@ fn chat(a: &[String]) -> Result<()> {
         let (new, stats) = s.reply(&p, &history, &cfg.str("system"), &tools, &enabled, cfg.i64("max_tool_rounds").max(0) as usize, &mut |e| { on(e); let _ = std::io::stdout().flush(); }, &|| false)?;
         println!("\n[{stats}]");
         history.extend(new);
+    }
+    Ok(())
+}
+
+fn gpu_check(a: &[String]) -> Result<()> {
+    use cube_engine::Backend;
+    let vdir = a.get(2).context(USAGE)?;
+    let arg = |k: &str, d: usize| a.iter().position(|x| x == k).and_then(|i| a.get(i + 1)).and_then(|x| x.parse().ok()).unwrap_or(d);
+    let (ctx, ntok) = (arg("--ctx", 512), arg("--tokens", 32));
+    let g = cube_gpu::gpu().context("no CUDA device found (NVIDIA driver not loaded)")?;
+    println!("GPU: {} (compute {}.{}), VRAM free {:.2} GB", g.name, g.cc.0, g.cc.1, cube_gpu::vram().map_or(0.0, |v| v.0 as f64 / 1e9));
+    let v = Vault::open(vdir)?;
+    let m = v.meta().clone();
+    let half = arg("--layers", m.layers / 2).max(1);
+    println!("model: {:?} {} layers, codec {:?}; VRAM needed whole {:.2} GB, {half} layers {:.2} GB", m.arch, m.layers, m.codec,
+        cube_gpu::vram_needed(&v, ctx, None) as f64 / 1e9, cube_gpu::vram_needed(&v, ctx, Some(half)) as f64 / 1e9);
+    let prompt: Vec<u32> = (0..24u32).map(|i| (1000 + 7919 * i) % m.vocab as u32).collect();
+    let o = cube_engine::Options { ctx, ..Default::default() };
+    let t = Instant::now();
+    let mut cpu = cube_engine::Engine::open(Vault::open(vdir)?, o.clone())?;
+    let t_open = t.elapsed().as_secs_f64();
+    let t = Instant::now();
+    let mut gpu = cube_gpu::GpuDense::open(&v, ctx, None)?;
+    println!("opened: CPU {t_open:.1}s, GPU {:.1}s ({:.0} MB VRAM)", t.elapsed().as_secs_f64(), gpu.vram_bytes() as f64 / 1e6);
+    let cmp = |x: &[f32], y: &[f32]| -> (f64, f64, bool) {
+        let (mut d2, mut n2, mut mx) = (0f64, 0f64, 0f64);
+        for (p, q) in x.iter().zip(y) {
+            let d = (*p as f64 - *q as f64).abs();
+            d2 += d * d;
+            n2 += (*p as f64) * (*p as f64);
+            mx = mx.max(d);
+        }
+        ((d2 / n2.max(1e-30)).sqrt(), mx, cube_engine::sample::argmax(x) == cube_engine::sample::argmax(y))
+    };
+    let mut ok = true;
+    // 1. prompt logits + per-layer hidden states
+    cpu.forward(&prompt, 1, true)?;
+    Backend::forward(&mut gpu, &prompt, 1, true)?;
+    let (rl, mx, am) = cmp(&cpu.logits, gpu.logits());
+    println!("prompt logits: relL2 {rl:.2e}  maxabs {mx:.2e}  argmax {}", if am { "same" } else { "DIFFERENT" });
+    ok &= rl < 1e-3 && am;
+    if let (Some(hc), Some(hg)) = (cpu.dump_hidden.as_ref(), gpu.dump_hidden()) {
+        let hid = m.hidden;
+        let worst = (0..m.layers).map(|l| cmp(&hc[l * hid..(l + 1) * hid], &hg[l * hid..(l + 1) * hid]).0).fold(0f64, f64::max);
+        println!("hidden states, worst layer relL2 {worst:.2e}");
+        ok &= worst < 1e-3;
+    }
+    // 2. greedy continuation
+    let gen = |b: &mut dyn Backend| -> Result<(Vec<u32>, f64)> {
+        b.reset();
+        let t = Instant::now();
+        let (out, _, st) = cube_engine::backend::generate(b, &prompt, ntok, 0.0, 1.0, 1, 1, &[], &mut |_| false)?;
+        let _ = t;
+        Ok((out, st.tok_s))
+    };
+    let (oc, sc) = gen(&mut cpu)?;
+    let (og, sg) = gen(&mut gpu)?;
+    let same = oc.iter().zip(&og).take_while(|(a, b)| a == b).count();
+    println!("greedy {ntok} tokens: {same} identical before the first difference; CPU {sc:.2} tok/s, GPU {sg:.2} tok/s");
+    ok &= same >= ntok.min(8);
+    // 3. split mode
+    drop(gpu);
+    let mut sp = cube_engine::Engine::open(Vault::open(vdir)?, o)?;
+    sp.attach_prefix(Box::new(cube_gpu::GpuDense::open(&v, ctx, Some(half))?));
+    let (os, ss) = gen(&mut sp)?;
+    let same2 = oc.iter().zip(&os).take_while(|(a, b)| a == b).count();
+    cpu.reset();
+    sp.reset();
+    cpu.forward(&prompt, 1, false)?;
+    sp.forward(&prompt, 1, false)?;
+    let (rl2, _, am2) = cmp(&cpu.logits, &sp.logits);
+    println!("split ({half} layers on GPU): logits relL2 {rl2:.2e} argmax {}, greedy {same2}/{ntok} identical, {ss:.2} tok/s", if am2 { "same" } else { "DIFFERENT" });
+    ok &= rl2 < 1e-3 && am2;
+    println!("GPU CHECK {}", if ok { "PASS" } else { "FAIL" });
+    if !ok {
+        bail!("GPU results differ from the CPU engine");
     }
     Ok(())
 }

@@ -12,6 +12,7 @@ path = "src/main.rs"
 cube-core = { path = "../cube-core" }
 cube-vault = { path = "../cube-vault" }
 cube-engine = { path = "../cube-engine" }
+cube-gpu = { path = "../cube-gpu" }
 anyhow.workspace = true
 serde_json.workspace = true
 rayon.workspace = true

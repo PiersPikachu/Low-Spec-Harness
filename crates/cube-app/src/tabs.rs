@@ -1040,8 +1040,10 @@ pub fn folders(a: &mut App, ctx: &egui::Context) {
 }
 
 // ====================================================================== Config
-const FIELDS: [(&str, &str, &str); 15] = [
+const FIELDS: [(&str, &str, &str); 17] = [
     ("vault", "Model vault", "vault"),
+    ("mode", "Execution mode (auto, cpu, gpu, split)", "mode"),
+    ("gpu_layers", "GPU layers in split mode (0 = as many as fit)", "int"),
     ("ctx", "Context length (tokens)", "int"),
     ("max_new", "Max reply tokens", "int"),
     ("max_file_growth", "Max file growth per reply (chars, 0 = 4 x max reply)", "int"),
@@ -1132,6 +1134,17 @@ pub fn config(a: &mut App, ctx: &egui::Context) {
                             let b = a.t.cf_bool.entry(k.into()).or_default();
                             ui.checkbox(b, "");
                         }
+                        "mode" => {
+                            let v = a.t.cf.entry(k.into()).or_default();
+                            if v.is_empty() {
+                                *v = "auto".into();
+                            }
+                            egui::ComboBox::from_id_salt("cfgmode").width(120.0).selected_text(v.clone()).show_ui(ui, |ui| {
+                                for n in ["auto", "cpu", "gpu", "split"] {
+                                    ui.selectable_value(v, n.to_string(), n);
+                                }
+                            });
+                        }
                         "vault" => {
                             let v = a.t.cf.entry(k.into()).or_default();
                             egui::ComboBox::from_id_salt("cfgvault").width(300.0).selected_text(v.clone()).show_ui(ui, |ui| {
@@ -1219,6 +1232,7 @@ fn machine_text(a: &App) -> String {
         av / 1024.0,
         g.map_or("none found (nvidia-smi)".to_string(), |g| format!("{} - {:.1} GB VRAM, {:.1} GB free, driver {}", g.name, g.vram_total_mb / 1024.0, g.vram_free_mb / 1024.0, g.driver))
     );
+    s.push_str(&format!("CUDA engine: {}\n", match cube_gpu::gpu() { Some(g) => format!("{} (compute {}.{}), VRAM free {:.1} GB", g.name, g.cc.0, g.cc.1, cube_gpu::vram().map_or(0.0, |v| v.0 as f64 / 1e9)), None => "not available (no NVIDIA driver)".into() }));
     s.push_str(&format!("CPU features: avx2={} fma={} (engine built {})\n", is_x86_feature("avx2"), is_x86_feature("fma"), if cube_engine::simd::ON { "with AVX2/FMA kernels" } else { "with portable kernels" }));
     if let Ok(v) = paths::resolve_vault(&a.p, &a.cfg, &a.cfg.str("vault")) {
         if let Ok(vault) = cube_vault::Vault::open(&v) {

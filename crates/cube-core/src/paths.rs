@@ -26,7 +26,8 @@ impl Paths {
         let exe = std::env::current_exe().ok().and_then(|p| p.parent().map(Path::to_path_buf)).unwrap_or_else(|| PathBuf::from("."));
         let mut d = Some(exe.as_path());
         while let Some(x) = d {
-            if x.join("data").is_dir() && (x.join("Cargo.toml").exists() || x.join("cube-harness.bat").exists() || x.join("data").join("harness_config.json").exists()) {
+            let repo = x.join("Cargo.toml").exists() && x.join("crates").is_dir();
+            if repo || (x.join("data").is_dir() && (x.join("cube-harness.bat").exists() || x.join("data").join("harness_config.json").exists())) {
                 return Paths::at(x.to_path_buf());
             }
             d = x.parent();

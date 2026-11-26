@@ -28,7 +28,7 @@ pub enum Msg {
 
 /// What identifies a loaded engine: a change to any of these reloads the model.
 pub fn key(c: &Config) -> String {
-    ["vault", "ctx", "kv16", "resident_mb", "threads"].iter().map(|k| c.get(k).to_string()).collect::<Vec<_>>().join("|")
+    ["vault", "ctx", "kv16", "resident_mb", "threads", "mode", "gpu_layers"].iter().map(|k| c.get(k).to_string()).collect::<Vec<_>>().join("|")
 }
 
 pub struct Worker {

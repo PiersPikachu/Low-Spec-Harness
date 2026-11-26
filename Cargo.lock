@@ -684,6 +684,7 @@ dependencies = [
  "anyhow",
  "cube-core",
  "cube-engine",
+ "cube-gpu",
  "cube-vault",
  "eframe",
  "egui_extras",
