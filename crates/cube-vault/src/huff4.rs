@@ -253,7 +253,8 @@ impl<'a> Huff4<'a> {
         let p_sm = p_es + pos + 8;
         ensure!(blob.len() >= p_sm + rows * cols, "huffman4 blob truncated (data)");
         let lut = build_lut(&len);
-        Ok(Huff4 { rows, cols, len, off, es: &blob[p_es..p_es + pos + 8], sm: &blob[p_sm..p_sm + rows * cols], lut })
+        // `es` runs to the end of the blob: fast decoders refill 4 bytes at a time and may read past the last code (into the pad / sm)
+        Ok(Huff4 { rows, cols, len, off, es: &blob[p_es..], sm: &blob[p_sm..p_sm + rows * cols], lut })
     }
 
     #[inline]

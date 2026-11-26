@@ -47,10 +47,20 @@ name = "cube-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "cube-engine",
  "cube-pack",
  "cube-vault",
  "rayon",
  "serde_json",
+]
+
+[[package]]
+name = "cube-engine"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cube-vault",
+ "rayon",
 ]
 
 [[package]]

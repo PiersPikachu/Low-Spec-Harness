@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/cube-vault", "crates/cube-pack", "crates/cube-cli"]
+members = ["crates/cube-vault", "crates/cube-pack", "crates/cube-engine", "crates/cube-cli"]
 
 [workspace.package]
 version = "0.1.0"

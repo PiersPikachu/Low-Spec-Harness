@@ -1,0 +1,10 @@
+[package]
+name = "cube-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+cube-vault = { path = "../cube-vault" }
+anyhow.workspace = true
+rayon.workspace = true

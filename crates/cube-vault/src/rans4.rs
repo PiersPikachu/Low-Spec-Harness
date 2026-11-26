@@ -93,6 +93,14 @@ impl<'a> Rans4<'a> {
     pub fn sm_row(&self, r: usize) -> &'a [u8] {
         &self.sm[r * self.cols..(r + 1) * self.cols]
     }
+    /// all chain bytes (plus the 8 pad bytes)
+    pub fn chains(&self) -> &'a [u8] {
+        self.cs
+    }
+    /// start of the 4 chains of row block `b` inside [`chains`](Self::chains)
+    pub fn block_offsets(&self, b: usize) -> [usize; 4] {
+        [self.chain_off(4 * b), self.chain_off(4 * b + 1), self.chain_off(4 * b + 2), self.chain_off(4 * b + 3)]
+    }
 
     pub fn decode_bits(&self) -> Vec<u16> {
         let mut out = vec![0u16; self.rows * self.cols];
