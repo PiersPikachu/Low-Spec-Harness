@@ -1,0 +1,22 @@
+[package]
+name = "cube-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "cube-harness"
+path = "src/main.rs"
+
+[dependencies]
+cube-core = { path = "../cube-core" }
+cube-vault = { path = "../cube-vault" }
+cube-engine = { path = "../cube-engine" }
+anyhow.workspace = true
+serde_json.workspace = true
+rayon.workspace = true
+eframe = { version = "0.31", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
+egui_extras = { version = "0.31", default-features = false }
+rfd = { version = "0.15", default-features = false, features = ["xdg-portal", "async-std"] }
+open = "5"
+zip = { version = "2", default-features = false, features = ["deflate"] }

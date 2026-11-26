@@ -108,6 +108,11 @@ impl StreamStore {
     pub fn pinned_bytes(&self) -> u64 {
         self.pinned_bytes
     }
+    pub fn unpin(&mut self, s: usize) {
+        if let Some(b) = self.pinned.remove(&s) {
+            self.pinned_bytes -= b.len() as u64;
+        }
+    }
     pub fn is_pinned(&self, s: usize) -> bool {
         self.pinned.contains_key(&s)
     }

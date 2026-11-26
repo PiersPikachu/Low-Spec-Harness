@@ -7,7 +7,9 @@ license.workspace = true
 [dependencies]
 cube-vault = { path = "../cube-vault" }
 cube-engine = { path = "../cube-engine" }
+cube-gpu = { path = "../cube-gpu" }
 anyhow.workspace = true
+rayon.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 regex = "1"
@@ -18,4 +20,6 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 num-bigint = "0.4"
 num-traits = "0.2"
 sha1_smol = "1"
-sysinfo = { version = "0.33", default-features = false, features = ["system"] }
+sysinfo = { version = "0.33", default-features = false, features = ["system", "disk"] }
+ureq = { version = "2", default-features = false, features = ["tls", "native-certs", "json", "proxy-from-env"] }
+cube-pack = { path = "../cube-pack" }

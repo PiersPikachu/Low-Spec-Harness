@@ -14,7 +14,7 @@
 //! <- QUIT
 //! ```
 
-use crate::model::Engine;
+use crate::backend::Backend;
 use crate::sample::{self, Rng};
 use anyhow::Result;
 use std::fs::File;
@@ -77,7 +77,9 @@ fn pct(v: &[f64], q: f64) -> f64 {
 }
 
 pub struct Server {
-    pub e: Engine,
+    pub e: Box<dyn Backend>,
+    /// a sliding-window ring can roll back at most this far (None: no ring)
+    pub ring_margin: Option<usize>,
     pub log: Option<File>,
     pub dump: Option<File>,
     pub ignore_eos: bool,
@@ -93,7 +95,7 @@ impl Server {
     fn fwd(&mut self, t: &[u32], logits: u8) -> Result<()> {
         let dump = self.dump.is_some();
         self.e.forward(t, logits, dump)?;
-        if let (Some(f), Some(h)) = (self.dump.as_mut(), self.e.dump_hidden.as_ref()) {
+        if let (Some(f), Some(h)) = (self.dump.as_mut(), self.e.dump_hidden()) {
             let b: Vec<u8> = h.iter().flat_map(|x| x.to_le_bytes()).collect();
             f.write_all(&b)?;
         }
@@ -102,7 +104,7 @@ impl Server {
 
     /// prefill in chunks of the batch size; logits for the last chunk
     fn prefill(&mut self, pt: &[u32]) -> Result<()> {
-        let b = self.e.opt.batch.max(1);
+        let b = self.e.batch().max(1);
         let mut i = 0;
         while i < pt.len() {
             let n = (pt.len() - i).min(b);
@@ -123,7 +125,7 @@ impl Server {
             }
             rx.recv().ok()
         };
-        let ctx = self.e.opt.ctx;
+        let ctx = self.e.ctx();
         while let Some(line) = next(&mut pending) {
             let l = line.trim_end_matches(['\r', '\n']);
             let w: Vec<&str> = l.split_whitespace().collect();
@@ -133,16 +135,17 @@ impl Server {
                 "QUIT" => break,
                 "PING" => writeln!(out, "PONG")?,
                 "RESET" => {
-                    self.e.pos = 0;
+                    self.e.reset();
                     self.lg("[reset] kv cache cleared");
                     writeln!(out, "OK")?
                 }
                 "SETPOS" => {
                     let p: i64 = w.get(1).and_then(|x| x.parse().ok()).unwrap_or(-1);
-                    if p < 0 || p as usize > self.e.pos {
-                        writeln!(out, "ERR setpos {p} (pos {})", self.e.pos)?
-                    } else if self.e.has_ring() && self.e.pos - p as usize > self.e.opt.kv_margin {
-                        writeln!(out, "ERR ring {p} (pos {}, rollback limit {})", self.e.pos, self.e.opt.kv_margin)?
+                    let pos = self.e.pos();
+                    if p < 0 || p as usize > pos {
+                        writeln!(out, "ERR setpos {p} (pos {pos})")?
+                    } else if self.ring_margin.map_or(false, |mg| pos - p as usize > mg) {
+                        writeln!(out, "ERR ring {p} (pos {pos}, rollback limit {})", self.ring_margin.unwrap())?
                     } else {
                         self.e.set_pos(p as usize)?;
                         writeln!(out, "OK {p}")?
@@ -150,7 +153,7 @@ impl Server {
                 }
                 "MOESTATS" => {
                     let (h, m, c) = self.e.expert_stats().unwrap_or((0, 0, 0));
-                    let ms = self.e.expert_read_ms();
+                    let ms = 0.0f64;
                     writeln!(out, "M {h} {m} {ms:.1} {c} 0 0 0 0.0 0 0.0 0 0 0")?
                 }
                 "VERIFY" | "VERIFYP" => {
@@ -168,31 +171,31 @@ impl Server {
                         continue;
                     }
                     let Some(tl) = next(&mut pending) else { break };
-                    if n < 1 || n > self.e.opt.batch || self.e.pos + n > ctx {
-                        writeln!(out, "ERR verify n={n} pos={} batch={} ctx={ctx}", self.e.pos, self.e.opt.batch)?;
+                    if n < 1 || n > self.e.batch() || self.e.pos() + n > ctx {
+                        writeln!(out, "ERR verify n={n} pos={} batch={} ctx={ctx}", self.e.pos(), self.e.batch())?;
                         out.flush()?;
                         continue;
                     }
                     let pt = parse_toks(&tl, n);
                     let t0 = Instant::now();
                     self.fwd(&pt, 2)?;
-                    let v = self.e.m.vocab;
+                    let v = self.e.meta().vocab;
                     if p {
                         for t in 0..n {
-                            let d = sample::distribution(&self.e.all_logits[t * v..(t + 1) * v], temp, topp, topk);
+                            let d = sample::distribution(&self.e.all_logits()[t * v..(t + 1) * v], temp, topp, topk);
                             let mut s = format!("P {}", d.len());
                             for (id, pr) in d {
                                 s.push_str(&format!(" {id} {}", g9(pr)));
                             }
                             writeln!(out, "{s}")?;
                         }
-                        writeln!(out, "END verifyp {n} {} {:.0}", self.e.pos, t0.elapsed().as_secs_f64() * 1e3)?;
+                        writeln!(out, "END verifyp {n} {} {:.0}", self.e.pos(), t0.elapsed().as_secs_f64() * 1e3)?;
                     } else {
                         let mut s = String::from("A");
                         for t in 0..n {
-                            s.push_str(&format!(" {}", sample::argmax(&self.e.all_logits[t * v..(t + 1) * v])));
+                            s.push_str(&format!(" {}", sample::argmax(&self.e.all_logits()[t * v..(t + 1) * v])));
                         }
-                        writeln!(out, "{s}\nEND verify {n} {} {:.0}", self.e.pos, t0.elapsed().as_secs_f64() * 1e3)?;
+                        writeln!(out, "{s}\nEND verify {n} {} {:.0}", self.e.pos(), t0.elapsed().as_secs_f64() * 1e3)?;
                     }
                 }
                 "LOGITS" => {
@@ -207,13 +210,13 @@ impl Server {
                     if let Some(f) = self.dump.as_mut() {
                         f.flush()?;
                     }
-                    let mut s = String::with_capacity(self.e.m.vocab * 14);
+                    let mut s = String::with_capacity(self.e.meta().vocab * 14);
                     s.push('L');
-                    for &x in &self.e.logits {
+                    for &x in self.e.logits() {
                         s.push(' ');
                         s.push_str(&g9(x));
                     }
-                    writeln!(out, "{s}\nEND dbg 0 {}", self.e.pos)?;
+                    writeln!(out, "{s}\nEND dbg 0 {}", self.e.pos())?;
                 }
                 "GEN" => {
                     if w.len() != 7 {
@@ -251,17 +254,17 @@ impl Server {
         pending: &mut Vec<String>,
         out: &mut impl Write,
     ) -> Result<()> {
-        let ctx = self.e.opt.ctx;
-        if self.e.pos + pt.len() + 1 > ctx {
-            writeln!(out, "ERR ctx {} {ctx}", self.e.pos)?;
+        let ctx = self.e.ctx();
+        if self.e.pos() + pt.len() + 1 > ctx {
+            writeln!(out, "ERR ctx {} {ctx}", self.e.pos())?;
             return Ok(());
         }
         let mut rng = Rng::new(seed);
         let tp = Instant::now();
         self.prefill(pt)?;
         let prefill_ms = tp.elapsed().as_secs_f64() * 1e3;
-        let eos: Vec<i64> = self.e.m.eos.clone();
-        let mut tok = sample::sample(&self.e.logits, temp, topp, topk, &mut rng);
+        let eos: Vec<i64> = self.e.meta().eos.clone();
+        let mut tok = sample::sample(self.e.logits(), temp, topp, topk, &mut rng);
         let mut new_tok = 0usize;
         let reason;
         let mut tms: Vec<f64> = Vec::new();
@@ -293,15 +296,15 @@ impl Server {
                 reason = "stop";
                 break;
             }
-            if self.e.pos + 1 >= ctx {
+            if self.e.pos() + 1 >= ctx {
                 reason = "ctx";
                 break;
             }
             let t1 = Instant::now();
             self.fwd(&[tok as u32], 1)?;
-            tok = sample::sample(&self.e.logits, temp, topp, topk, &mut rng);
+            tok = sample::sample(self.e.logits(), temp, topp, topk, &mut rng);
             tms.push(t1.elapsed().as_secs_f64() * 1e3);
-            let t = &self.e.timing;
+            let t = self.e.timing();
             sw += t.wait_ms;
             sr += t.read_ms;
             sb += t.bytes_read as f64;
@@ -325,8 +328,8 @@ impl Server {
         } else {
             writeln!(out, "S tok_s=0 ms_tok=0 stall_pct=0 read_MBps=0 prefill_ms={prefill_ms:.0}")?;
         }
-        self.lg(&format!("[gen] prompt_tokens={} new_tokens={new_tok} reason={reason} pos_after={}", pt.len(), self.e.pos));
-        writeln!(out, "END {reason} {new_tok} {}", self.e.pos)?;
+        self.lg(&format!("[gen] prompt_tokens={} new_tokens={new_tok} reason={reason} pos_after={}", pt.len(), self.e.pos()));
+        writeln!(out, "END {reason} {new_tok} {}", self.e.pos())?;
         out.flush()?;
         Ok(())
     }

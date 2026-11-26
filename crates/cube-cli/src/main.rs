@@ -14,7 +14,7 @@ const USAGE: &str = "usage:
   cube pack <model_dir> <vault> [--rans4] [--mxf4] [--convert-matrices]
                                         pack a Hugging Face checkpoint (lossless; --convert-matrices rounds F16/F32 to bf16)
   cube verify-source <vault> <model_dir>   compare every tensor of a vault with its source checkpoint
-  cube serve <vault> [--ctx N] [--threads N] [--batch N] [--resident-mb MB] [--expert-mb MB] [--kv16] [--log FILE]
+  cube serve <vault> [--ctx N] [--threads N] [--batch N] [--resident-mb MB] [--expert-mb MB] [--kv16] [--log FILE] [--gpu | --gpu-layers N]
                                         run the engine on the nvme_engine_u line protocol (stdin/stdout)
   cube chat <vault> [--prompt TEXT] [--tools a,b] [--think] [--max-new N] [--ctx N] [--greedy] [--seed N]
                                         talk to a model (with tools); without --prompt reads lines from stdin
@@ -236,7 +236,8 @@ fn engine_opts(a: &[String], from: usize, extra: &mut Vec<(String, String)>) -> 
             "--kv16" => o.kv16 = true,
             "--log" => { log = Some(val(i)?.clone()); i += 1; }
             // accepted for compatibility with nvme_engine_u; no effect here
-            "--cached" => {}
+            "--cached" | "--gpu" => {}
+            "--gpu-layers" => { i += 1; }
             "--io-threads" | "--io-chunk" | "--log-detail" | "--vram-mb" => { i += 1; }
             "--prefetch" => { if a.get(i + 1).map_or(false, |x| x.starts_with(|c: char| c.is_ascii_digit())) { i += 1; } }
             "--prompt" | "--tokens" => { extra.push((a[i].clone(), val(i)?.clone())); i += 1; }
@@ -258,11 +259,22 @@ fn serve(a: &[String]) -> Result<()> {
     let (o, threads, log) = engine_opts(a, 3, &mut Vec::new())?;
     let t0 = Instant::now();
     let v = Vault::open(vdir)?;
-    let e = cube_engine::Engine::open(v, o)?;
+    let (gpu_all, gpu_layers) = (a.iter().any(|x| x == "--gpu"), a.iter().position(|x| x == "--gpu-layers").and_then(|i| a.get(i + 1)).and_then(|x| x.parse::<usize>().ok()).unwrap_or(0));
+    let (e, ring_margin): (Box<dyn cube_engine::Backend>, Option<usize>) = if gpu_all {
+        (Box::new(cube_gpu::GpuDense::open(&v, o.ctx, None)?), None)
+    } else {
+        let mut e = cube_engine::Engine::open(v, o)?;
+        if gpu_layers > 0 {
+            let g = cube_gpu::GpuDense::open(&e.vault, e.opt.ctx, Some(gpu_layers))?;
+            e.attach_prefix(Box::new(g));
+        }
+        let rm = if e.has_ring() { Some(e.opt.kv_margin) } else { None };
+        (Box::new(e), rm)
+    };
     let logf = match &log { Some(p) => Some(std::fs::OpenOptions::new().create(true).append(true).open(p)?), None => None };
     let dump = match std::env::var("NVME_DUMP_H") { Ok(p) => Some(std::fs::File::create(p)?), Err(_) => None };
-    eprintln!("engine ready: {} layers, {threads} threads, {:.0} MB pinned, {:.2}s", e.m.layers, e.pinned_bytes() as f64 / 1e6, t0.elapsed().as_secs_f64());
-    let mut s = cube_engine::serve::Server { e, log: logf, dump, ignore_eos: std::env::var("NVME_IGNORE_EOS").is_ok() };
+    eprintln!("engine ready: {} layers, {threads} threads, {:.0} MB pinned, {:.2}s", e.meta().layers, e.pinned_bytes() as f64 / 1e6, t0.elapsed().as_secs_f64());
+    let mut s = cube_engine::serve::Server { e, ring_margin, log: logf, dump, ignore_eos: std::env::var("NVME_IGNORE_EOS").is_ok() };
     let rx = cube_engine::serve::stdin_lines();
     let stdout = std::io::stdout();
     let mut out = std::io::BufWriter::new(stdout.lock());

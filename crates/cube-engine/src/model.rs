@@ -67,6 +67,8 @@ pub struct Timing {
 }
 
 pub struct Engine {
+    /// set from any thread to abort a running prefill / generation at the next chunk or token (the call returns an error)
+    pub abort: Arc<std::sync::atomic::AtomicBool>,
     pub vault: Vault,
     pub m: ModelMeta,
     pub opt: Options,
@@ -85,6 +87,8 @@ pub struct Engine {
     /// last-token hidden state after every layer of the last forward (for verification)
     pub dump_hidden: Option<Vec<f32>>,
     pub timing: Timing,
+    /// layers [0, n) run by another device (split mode)
+    pub prefix: Option<Box<dyn crate::backend::LayerPrefix>>,
 }
 
 impl Engine {
@@ -96,44 +100,7 @@ impl Engine {
         ensure!(!opt.kv16 || kvd % 8 == 0, "fp16 KV needs kv_heads * head_dim divisible by 8");
         let half = hd / 2;
         let ctx = opt.ctx;
-        // rope tables
-        let mut cos = vec![0f32; ctx * half];
-        let mut sin = vec![0f32; ctx * half];
-        for i in 0..half {
-            match &m.rope {
-                Rope::Table { scale } => {
-                    let rf = *vault.manifest.rope_inv.get(i).context("rope table shorter than head_dim/2")?;
-                    let sc = *scale as f32;
-                    for p in 0..ctx {
-                        let a = p as f32 * rf;
-                        cos[p * half + i] = a.cos() * sc;
-                        sin[p * half + i] = a.sin() * sc;
-                    }
-                }
-                rope => {
-                    let theta = match rope {
-                        Rope::Default { theta } | Rope::Llama3 { theta, .. } => *theta,
-                        _ => unreachable!(),
-                    };
-                    let mut fr = theta.powf(-2.0 * i as f64 / hd as f64);
-                    if let Rope::Llama3 { factor, low, high, orig, .. } = rope {
-                        let wl = 2.0 * std::f64::consts::PI / fr;
-                        let (lo, hi) = (orig / low, orig / high);
-                        if wl > lo {
-                            fr /= factor;
-                        } else if wl >= hi {
-                            let sm = (orig / wl - low) / (high - low);
-                            fr = (1.0 - sm) * fr / factor + sm * fr;
-                        }
-                    }
-                    for p in 0..ctx {
-                        let a = p as f64 * fr;
-                        cos[p * half + i] = a.cos() as f32;
-                        sin[p * half + i] = a.sin() as f32;
-                    }
-                }
-            }
-        }
+        let (cos, sin) = rope_tables(&m, &vault.manifest.rope_inv, ctx)?;
         // KV
         let mut kv = Vec::with_capacity(m.layers);
         let mut has_ring = false;
@@ -161,6 +128,7 @@ impl Engine {
         };
         let embed = Embed::open(&vault, &m)?;
         Ok(Engine {
+            abort: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             logits: vec![0.0; m.vocab],
             vault,
             m,
@@ -177,6 +145,7 @@ impl Engine {
             all_logits: Vec::new(),
             dump_hidden: None,
             timing: Timing::default(),
+            prefix: None,
         })
     }
 
@@ -214,12 +183,21 @@ impl Engine {
         self.timing = Timing::default();
         let mut dumps = if dump { Some(Vec::with_capacity(m.layers * hid)) } else { None };
         let pos0 = self.pos;
+        let l0 = match self.prefix.as_mut() {
+            Some(p) => {
+                let t0 = Instant::now();
+                p.run(&mut h, n, pos0, dumps.as_mut())?;
+                self.timing.comp_ms += t0.elapsed().as_secs_f64() * 1e3;
+                p.layers().min(m.layers)
+            }
+            None => 0,
+        };
         let ns = m.layers + usize::from(logits > 0);
         let sid = |i: usize| if i < m.layers { i } else { m.lm_head_stream };
         let next_of = |i: usize, st: &StreamStore| -> Option<usize> {
-            ((i + 1)..ns).map(sid).find(|&s| !st.is_pinned(s)).or_else(|| (0..m.layers).find(|&s| !st.is_pinned(s)))
+            ((i + 1)..ns).map(sid).find(|&s| !st.is_pinned(s)).or_else(|| (l0..m.layers).find(|&s| !st.is_pinned(s)))
         };
-        for l in 0..m.layers {
+        for l in l0..m.layers {
             let t0 = Instant::now();
             let nx = next_of(l, &self.store);
             let (blob, bytes, rms) = self.store.get(l, nx)?;
@@ -668,6 +646,50 @@ impl Engine {
     }
 }
 
+/// cos/sin tables (ctx x head_dim/2) for the model's rotary embedding, computed like the C engine.
+pub fn rope_tables(m: &ModelMeta, rope_inv: &[f32], ctx: usize) -> Result<(Vec<f32>, Vec<f32>)> {
+    let hd = m.head_dim;
+    let half = hd / 2;
+    let mut cos = vec![0f32; ctx * half];
+    let mut sin = vec![0f32; ctx * half];
+    for i in 0..half {
+        match &m.rope {
+            Rope::Table { scale } => {
+                let rf = *rope_inv.get(i).context("rope table shorter than head_dim/2")?;
+                let sc = *scale as f32;
+                for p in 0..ctx {
+                    let a = p as f32 * rf;
+                    cos[p * half + i] = a.cos() * sc;
+                    sin[p * half + i] = a.sin() * sc;
+                }
+            }
+            rope => {
+                let theta = match rope {
+                    Rope::Default { theta } | Rope::Llama3 { theta, .. } => *theta,
+                    _ => unreachable!(),
+                };
+                let mut fr = theta.powf(-2.0 * i as f64 / hd as f64);
+                if let Rope::Llama3 { factor, low, high, orig, .. } = rope {
+                    let wl = 2.0 * std::f64::consts::PI / fr;
+                    let (lo, hi) = (orig / low, orig / high);
+                    if wl > lo {
+                        fr /= factor;
+                    } else if wl >= hi {
+                        let sm = (orig / wl - low) / (high - low);
+                        fr = (1.0 - sm) * fr / factor + sm * fr;
+                    }
+                }
+                for p in 0..ctx {
+                    let a = p as f64 * fr;
+                    cos[p * half + i] = a.cos() as f32;
+                    sin[p * half + i] = a.sin() as f32;
+                }
+            }
+        }
+    }
+    Ok((cos, sin))
+}
+
 fn add_bias(y: &mut [f32], n: usize, d: usize, b: Option<&[f32]>) {
     if let Some(b) = b {
         for t in 0..n {
@@ -856,19 +878,10 @@ impl GenStats {
 impl Engine {
     /// Prefill `prompt` at the current position (chunks of the batch size, logits for the last one).
     pub fn prefill(&mut self, prompt: &[u32]) -> Result<()> {
-        let b = self.opt.batch.max(1);
-        let mut i = 0;
-        while i < prompt.len() {
-            let n = (prompt.len() - i).min(b);
-            let last = i + n == prompt.len();
-            self.forward(&prompt[i..i + n], u8::from(last), false)?;
-            i += n;
-        }
-        Ok(())
+        crate::backend::prefill(self, prompt)
     }
 
-    /// The serve protocol's GEN, in process: prefill, then sample up to `max_new` tokens. `on_token(tokens so far)` runs after
-    /// every token and returns true to stop. Same token sequence as `nvme_engine_u` for the same seed.
+    /// The serve protocol's GEN, in process (see [`crate::backend::generate`]).
     #[allow(clippy::too_many_arguments)]
     pub fn generate(
         &mut self,
@@ -881,59 +894,59 @@ impl Engine {
         eos: &[u32],
         on_token: &mut dyn FnMut(&[u32]) -> bool,
     ) -> Result<(Vec<u32>, End, GenStats)> {
-        let ctx = self.opt.ctx;
-        ensure!(self.pos + prompt.len() + 1 <= ctx, "context full: position {} + {} prompt tokens > {ctx}", self.pos, prompt.len());
-        let mut rng = crate::sample::Rng::new(seed);
-        let tp = Instant::now();
-        self.prefill(prompt)?;
-        let prefill_ms = tp.elapsed().as_secs_f64() * 1e3;
-        let mut tok = crate::sample::sample(&self.logits, temp, topp, topk, &mut rng) as u32;
-        let mut out: Vec<u32> = Vec::new();
-        let mut tms: Vec<f64> = Vec::new();
-        let (mut sw, mut sr, mut sb) = (0f64, 0f64, 0f64);
-        let end;
-        loop {
-            out.push(tok);
-            let stop = on_token(&out);
-            if eos.contains(&tok) {
-                end = End::Eos;
-                break;
-            }
-            if out.len() >= max_new {
-                self.forward(&[tok], 0, false)?;
-                end = End::Max;
-                break;
-            }
-            if stop {
-                self.forward(&[tok], 0, false)?;
-                end = End::Stop;
-                break;
-            }
-            if self.pos + 1 >= ctx {
-                end = End::Ctx;
-                break;
-            }
-            let t1 = Instant::now();
-            self.forward(&[tok], 1, false)?;
-            tok = crate::sample::sample(&self.logits, temp, topp, topk, &mut rng) as u32;
-            tms.push(t1.elapsed().as_secs_f64() * 1e3);
-            sw += self.timing.wait_ms;
-            sr += self.timing.read_ms;
-            sb += self.timing.bytes_read as f64;
+        crate::backend::generate(self, prompt, max_new, temp, topp, topk, seed, eos, on_token)
+    }
+
+    /// Run layers `[0, n)` elsewhere (the GPU) from now on; their pinned streams are released.
+    pub fn attach_prefix(&mut self, p: Box<dyn crate::backend::LayerPrefix>) {
+        for l in 0..p.layers().min(self.m.layers) {
+            self.store.unpin(l);
         }
-        let nd = tms.len();
-        let mut st = GenStats { prefill_ms, decode_tokens: nd, resident_mb: self.pinned_bytes() as f64 / 1e6, ..Default::default() };
-        if nd > 0 {
-            let dec: f64 = tms.iter().sum();
-            let mut s = tms.clone();
-            s.sort_by(|a, b| a.partial_cmp(b).unwrap());
-            st.tok_s = 1000.0 * nd as f64 / dec;
-            st.ms_tok = dec / nd as f64;
-            st.p50_ms = s[((nd - 1) as f64 * 0.5) as usize];
-            st.stall_pct = if dec > 0.0 { 100.0 * sw / dec } else { 0.0 };
-            st.read_mbps = if sr > 0.0 { sb / 1e3 / sr } else { 0.0 };
-            st.streamed_mb_tok = sb / 1e6 / nd as f64;
-        }
-        Ok((out, end, st))
+        self.prefix = Some(p);
+    }
+}
+
+impl crate::backend::Backend for Engine {
+    fn forward(&mut self, tok: &[u32], logits: u8, dump: bool) -> Result<()> {
+        Engine::forward(self, tok, logits, dump)
+    }
+    fn logits(&self) -> &[f32] {
+        &self.logits
+    }
+    fn all_logits(&self) -> &[f32] {
+        &self.all_logits
+    }
+    fn dump_hidden(&self) -> Option<&[f32]> {
+        self.dump_hidden.as_deref()
+    }
+    fn pos(&self) -> usize {
+        self.pos
+    }
+    fn set_pos(&mut self, p: usize) -> Result<()> {
+        Engine::set_pos(self, p)
+    }
+    fn reset(&mut self) {
+        self.pos = 0;
+    }
+    fn ctx(&self) -> usize {
+        self.opt.ctx
+    }
+    fn batch(&self) -> usize {
+        self.opt.batch
+    }
+    fn abort_flag(&self) -> Arc<std::sync::atomic::AtomicBool> {
+        self.abort.clone()
+    }
+    fn timing(&self) -> Timing {
+        self.timing.clone()
+    }
+    fn pinned_bytes(&self) -> u64 {
+        self.store.pinned_bytes()
+    }
+    fn meta(&self) -> &ModelMeta {
+        &self.m
+    }
+    fn expert_stats(&self) -> Option<(u64, u64, usize)> {
+        Engine::expert_stats(self)
     }
 }

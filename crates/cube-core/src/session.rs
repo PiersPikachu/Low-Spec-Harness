@@ -7,7 +7,7 @@ use crate::reply::{self, cap_cut, char_prefix, chunk_cut, compact_history, file_
 use crate::template::Tok;
 use crate::tools::Tools;
 use anyhow::{Context, Result};
-use cube_engine::{End, Engine, Options};
+use cube_engine::{Backend, End, Engine, Options};
 use cube_vault::Vault;
 use serde_json::{json, Map, Value as J};
 use std::path::PathBuf;
@@ -30,7 +30,7 @@ pub struct Session {
     pub vault_path: PathBuf,
     pub name: String,
     pub tok: Tok,
-    pub eng: Engine,
+    pub eng: Box<dyn Backend>,
     pub eos: Vec<u32>,
     pub chat_mode: bool,
     pub cfg: Config,
@@ -40,6 +40,8 @@ pub struct Session {
     fed: Vec<u32>,
     /// set from any thread to end the running generation after the next token
     pub stop: Arc<AtomicBool>,
+    /// compute threads of this session
+    pub pool: rayon::ThreadPool,
 }
 
 fn kw_think(think: bool) -> Map<String, J> {
@@ -92,7 +94,9 @@ impl Session {
             m.moe.as_ref().map(|x| format!(", {} experts top {}", x.experts, x.top_k)).unwrap_or_default()
         );
         let chat_mode = tok.chat_template.is_some();
-        let eng = Engine::open(vault, o)?;
+        let nth = if o.threads > 0 { o.threads } else { crate::hw::threads().saturating_sub(2).max(1) };
+        let pool = rayon::ThreadPoolBuilder::new().num_threads(nth).build()?;
+        let (eng, how) = pool.install(|| open_backend(vault, o, cfg, how))?;
         Ok(Session {
             name: vp.file_name().unwrap().to_string_lossy().into_owned(),
             vault_path: vp,
@@ -105,6 +109,7 @@ impl Session {
             how,
             fed: Vec::new(),
             stop: Arc::new(AtomicBool::new(false)),
+            pool,
         })
     }
 
@@ -114,7 +119,7 @@ impl Session {
     }
 
     pub fn reset(&mut self) {
-        self.eng.pos = 0;
+        self.eng.reset();
         self.fed.clear();
     }
 
@@ -130,8 +135,9 @@ impl Session {
 
     /// Generate from `ids`, reusing the KV cache up to the longest common prefix with what was fed before.
     #[allow(clippy::too_many_arguments)]
-    pub fn generate(&mut self, ids: &[u32], max_new: usize, temp: f32, topp: f32, topk: i32, seed: u64, on_tok: &mut dyn FnMut(&[u32])) -> Result<(Vec<u32>, End, cube_engine::GenStats)> {
-        gen_with(&mut self.eng, &mut self.fed, &self.stop, &self.eos, ids, max_new, temp, topp, topk, seed, on_tok)
+    pub fn generate(&mut self, ids: &[u32], max_new: usize, temp: f32, topp: f32, topk: i32, seed: u64, on_tok: &mut (dyn FnMut(&[u32]) + Send)) -> Result<(Vec<u32>, End, cube_engine::GenStats)> {
+        let (eng, fed, stop, eos, pool) = (&mut self.eng, &mut self.fed, &self.stop, &self.eos, &self.pool);
+        pool.install(|| gen_with(eng, fed, stop, eos, ids, max_new, temp, topp, topk, seed, on_tok))
     }
 
     /// Append trimmed turns verbatim to the artifact memory-<id> and return the note that replaces them.
@@ -160,8 +166,9 @@ impl Session {
 
     /// history: [{role, content, ...}] including the new user message. Streams through `on`; runs the tool calls the model
     /// makes (enabled tools only) and continues. Returns the new messages to append and a stats line.
-    pub fn reply(&mut self, p: &Paths, history: &[J], system: &str, tools: &Tools, enabled: &[String], max_tool_rounds: usize, on: &mut dyn FnMut(Event), should_stop: &dyn Fn() -> bool) -> Result<(Vec<J>, String)> {
+    pub fn reply(&mut self, p: &Paths, history: &[J], system: &str, tools: &Tools, enabled: &[String], max_tool_rounds: usize, on: &mut (dyn FnMut(Event) + Send), should_stop: &(dyn Fn() -> bool + Sync)) -> Result<(Vec<J>, String)> {
         let cfg = self.cfg.clone();
+        self.eng.abort_flag().store(false, Ordering::SeqCst);
         let schemas = tools.schemas(enabled);
         let acts = tools.actions(enabled);
         let mut system = system.to_string();
@@ -293,7 +300,8 @@ impl Session {
                         shown_a = r.answer.clone();
                     }
                 };
-                gen_with(&mut self.eng, &mut self.fed, &self.stop, &self.eos, &ids, max_new, temp, topp, topk, seed, &mut on_tok)?
+                let (eng, fed, stp, eosv) = (&mut self.eng, &mut self.fed, &self.stop, &self.eos);
+                self.pool.install(|| gen_with(eng, fed, stp, eosv, &ids, max_new, temp, topp, topk, seed, &mut on_tok))?
             };
             let mut out_all = pre.clone();
             out_all.extend_from_slice(&out);
@@ -466,7 +474,7 @@ impl Session {
 
 #[allow(clippy::too_many_arguments)]
 fn gen_with(
-    eng: &mut Engine,
+    eng: &mut Box<dyn Backend>,
     fed: &mut Vec<u32>,
     stop: &Arc<AtomicBool>,
     eos: &[u32],
@@ -476,18 +484,18 @@ fn gen_with(
     topp: f32,
     topk: i32,
     seed: u64,
-    on_tok: &mut dyn FnMut(&[u32]),
+    on_tok: &mut (dyn FnMut(&[u32]) + Send),
 ) -> Result<(Vec<u32>, End, cube_engine::GenStats)> {
     let mut lcp = fed.iter().zip(ids).take_while(|(a, b)| a == b).count();
     lcp = lcp.min(ids.len().saturating_sub(1));
     if lcp > 0 {
         if eng.set_pos(lcp).is_err() {
-            eng.pos = 0; // e.g. a sliding-window ring cannot roll back that far
+            eng.reset(); // e.g. a sliding-window ring cannot roll back that far
             fed.clear();
             lcp = 0;
         }
     } else if !fed.is_empty() {
-        eng.pos = 0;
+        eng.reset();
         fed.clear();
     }
     let new = &ids[lcp..];
@@ -497,10 +505,10 @@ fn gen_with(
         on_tok(o);
         st2.load(Ordering::SeqCst)
     };
-    let (out, end, st) = match eng.generate(new, max_new, temp, topp, topk, seed, eos, &mut cb) {
+    let (out, end, st) = match cube_engine::backend::generate(eng.as_mut(), new, max_new, temp, topp, topk, seed, eos, &mut cb) {
         Ok(x) => x,
         Err(e) => {
-            eng.pos = 0;
+            eng.reset();
             fed.clear();
             return Err(e);
         }
@@ -513,6 +521,47 @@ fn gen_with(
         fed.extend_from_slice(&out[..out.len().saturating_sub(1)]);
     }
     Ok((out, end, st))
+}
+
+/// The engine for this configuration: `mode` auto | cpu | gpu | split (`gpu_layers` layers on the GPU, the rest on the CPU).
+/// auto: the whole model on the GPU when it is dense and fits in free VRAM (with 400 MB to spare), else the CPU engine.
+pub fn open_backend(vault: Vault, o: Options, cfg: &Config, how_cpu: String) -> Result<(Box<dyn Backend>, String)> {
+    let mode = match cfg.str("mode").as_str() {
+        "" => "auto".to_string(),
+        m => m.to_string(),
+    };
+    let dense = vault.meta().arch == cube_vault::meta::Arch::Dense;
+    let gpu = if mode == "cpu" { None } else { cube_gpu::gpu() };
+    let free = cube_gpu::vram().map_or(0u64, |v| v.0 as u64);
+    if let Some(g) = gpu.as_ref().filter(|_| dense) {
+        let need = cube_gpu::vram_needed(&vault, o.ctx, None);
+        if mode == "gpu" || (mode == "auto" && need + 400_000_000 < free) {
+            let d = cube_gpu::GpuDense::open(&vault, o.ctx, None)?;
+            let how = format!("GPU-resident on {} ({:.0} MB of compressed weights + KV in VRAM)", g.name, d.vram_bytes() as f64 / 1e6);
+            return Ok((Box::new(d), how));
+        }
+        let want = cfg.i64("gpu_layers").max(0) as usize;
+        if mode == "split" || want > 0 {
+            let m = vault.meta();
+            let mut n = 0;
+            while n < m.layers && cube_gpu::vram_needed(&vault, o.ctx, Some(n + 1)) + 400_000_000 < free {
+                n += 1;
+            }
+            if want > 0 {
+                n = n.min(want);
+            }
+            if n > 0 {
+                let d = cube_gpu::GpuDense::open(&vault, o.ctx, Some(n))?;
+                let mut e = Engine::open(vault, o)?;
+                let nl = e.m.layers;
+                e.attach_prefix(Box::new(d));
+                return Ok((Box::new(e), format!("GPU+CPU split ({n} of {nl} layers on {}, the rest on the CPU)", g.name)));
+            }
+        }
+    }
+    anyhow::ensure!(mode != "gpu" || gpu.is_some(), "mode 'gpu': no CUDA device found");
+    anyhow::ensure!(mode != "gpu" || dense, "mode 'gpu': the GPU engine runs dense models only");
+    Ok((Box::new(Engine::open(vault, o)?), how_cpu))
 }
 
 /// 12345 -> "12,345" (Python's `{:,}`)
