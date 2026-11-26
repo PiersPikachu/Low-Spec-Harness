@@ -1,0 +1,15 @@
+[package]
+name = "cube-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "cube"
+path = "src/main.rs"
+
+[dependencies]
+cube-vault = { path = "../cube-vault" }
+anyhow.workspace = true
+rayon.workspace = true
+serde_json.workspace = true
