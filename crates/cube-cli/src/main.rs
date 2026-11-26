@@ -16,6 +16,8 @@ const USAGE: &str = "usage:
   cube verify-source <vault> <model_dir>   compare every tensor of a vault with its source checkpoint
   cube serve <vault> [--ctx N] [--threads N] [--batch N] [--resident-mb MB] [--expert-mb MB] [--kv16] [--log FILE]
                                         run the engine on the nvme_engine_u line protocol (stdin/stdout)
+  cube chat <vault> [--prompt TEXT] [--tools a,b] [--think] [--max-new N] [--ctx N] [--greedy] [--seed N]
+                                        talk to a model (with tools); without --prompt reads lines from stdin
   cube bench <vault> [--prompt N] [--tokens N] [serve options]   greedy prefill + decode timing";
 
 fn main() {
@@ -64,6 +66,7 @@ fn run() -> Result<()> {
         }
         Some("serve") => serve(&a),
         Some("bench") => bench(&a),
+        Some("chat") => chat(&a),
         Some("verify-source") => {
             let v = Vault::open(a.get(2).context(USAGE)?)?;
             let (n, bad) = cube_pack::verify_against_source(&v, std::path::Path::new(a.get(3).context(USAGE)?))?;
@@ -298,5 +301,57 @@ fn bench(a: &[String]) -> Result<()> {
         np as f64 * 1e3 / pms, nt as f64 * 1e3 / tot, tot / nt as f64, ms[ms.len() / 2], 100.0 * w / tot, if r > 0.0 { by as f64 / 1e3 / r } else { 0.0 }, 100.0 * at / tot, by as f64 / 1e6 / nt as f64);
     println!("D comp_ms_tok={:.1} lm_ms_tok={:.1} wait_ms_tok={:.1}", cm / nt as f64, lm / nt as f64, w / nt as f64);
     if let Some((h, m, c)) = e.expert_stats() { println!("M hits={h} misses={m} slots={c}"); }
+    Ok(())
+}
+
+fn chat(a: &[String]) -> Result<()> {
+    use cube_core::{paths, session::{Event, Session}, tools::Tools};
+    let p = paths::Paths::discover();
+    p.ensure_dirs();
+    let mut cfg = paths::Config::load(&p);
+    let vault = a.get(2).context(USAGE)?;
+    cfg.set("vault", serde_json::json!(std::fs::canonicalize(vault).map(|x| x.to_string_lossy().into_owned()).unwrap_or(vault.clone())));
+    let mut prompt: Option<String> = None;
+    let mut i = 3;
+    while i < a.len() {
+        let v = a.get(i + 1).cloned().unwrap_or_default();
+        match a[i].as_str() {
+            "--prompt" => { prompt = Some(v); i += 1; }
+            "--tools" => { cfg.set("enabled_plugins", serde_json::json!(v.split(',').filter(|x| !x.is_empty()).collect::<Vec<_>>())); i += 1; }
+            "--think" => cfg.set("think", serde_json::json!(true)),
+            "--greedy" => cfg.set("greedy", serde_json::json!(true)),
+            "--max-new" => { cfg.set("max_new", serde_json::json!(v.parse::<i64>()?)); i += 1; }
+            "--ctx" => { cfg.set("ctx", serde_json::json!(v.parse::<i64>()?)); i += 1; }
+            "--seed" => { cfg.set("seed", serde_json::json!(v.parse::<u64>()?)); i += 1; }
+            "--threads" => { cfg.set("threads", serde_json::json!(v.parse::<i64>()?)); i += 1; }
+            "--system" => { cfg.set("system", serde_json::json!(v)); i += 1; }
+            x => bail!("unknown option {x}"),
+        }
+        i += 1;
+    }
+    let th = cfg.i64("threads");
+    if th > 0 { rayon::ThreadPoolBuilder::new().num_threads(th as usize).build_global().ok(); }
+    let t0 = Instant::now();
+    let mut s = Session::open(&p, &cfg)?;
+    eprintln!("{}\nloaded in {:.1}s - {}", s.banner, t0.elapsed().as_secs_f64(), s.how);
+    let tools = Tools::load(&p, &cfg.str("python"));
+    let enabled = cfg.enabled_plugins();
+    let mut history: Vec<serde_json::Value> = Vec::new();
+    let lines: Vec<String> = match &prompt { Some(x) => vec![x.clone()], None => std::io::stdin().lines().map_while(|l| l.ok()).collect() };
+    for user in lines {
+        if user.trim().is_empty() { continue; }
+        history.push(serde_json::json!({"role": "user", "content": user}));
+        let on = |e: Event| match e {
+            Event::Thinking(t) => eprint!("\x1b[2m{t}\x1b[0m"),
+            Event::Assistant(t) => print!("{t}"),
+            Event::AssistantNext => println!(),
+            Event::Tool(t) => eprint!("\x1b[33m{t}\x1b[0m"),
+            Event::Act(_) => {}
+        };
+        use std::io::Write;
+        let (new, stats) = s.reply(&p, &history, &cfg.str("system"), &tools, &enabled, cfg.i64("max_tool_rounds").max(0) as usize, &mut |e| { on(e); let _ = std::io::stdout().flush(); }, &|| false)?;
+        println!("\n[{stats}]");
+        history.extend(new);
+    }
     Ok(())
 }

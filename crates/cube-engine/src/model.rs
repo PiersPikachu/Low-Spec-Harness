@@ -807,3 +807,133 @@ impl Embed {
 }
 
 pub type Blob = Arc<Vec<u8>>;
+
+/// How a generation ended.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum End {
+    Eos,
+    Max,
+    Stop,
+    Ctx,
+}
+impl End {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            End::Eos => "eos",
+            End::Max => "max",
+            End::Stop => "stop",
+            End::Ctx => "ctx",
+        }
+    }
+}
+
+/// Timing of one generation (the fields of the serve protocol's `S` line).
+#[derive(Clone, Debug, Default)]
+pub struct GenStats {
+    pub tok_s: f64,
+    pub ms_tok: f64,
+    pub p50_ms: f64,
+    pub stall_pct: f64,
+    pub read_mbps: f64,
+    pub prefill_ms: f64,
+    pub streamed_mb_tok: f64,
+    pub resident_mb: f64,
+    pub decode_tokens: usize,
+}
+
+impl GenStats {
+    pub fn line(&self) -> String {
+        if self.decode_tokens == 0 {
+            return format!("tok_s=0 ms_tok=0 stall_pct=0 read_MBps=0 prefill_ms={:.0}", self.prefill_ms);
+        }
+        format!(
+            "tok_s={:.3} ms_tok={:.0} p50_ms={:.0} stall_pct={:.0} read_MBps={:.0} prefill_ms={:.0} streamed_MB_tok={:.0} resident_MB={:.0}",
+            self.tok_s, self.ms_tok, self.p50_ms, self.stall_pct, self.read_mbps, self.prefill_ms, self.streamed_mb_tok, self.resident_mb
+        )
+    }
+}
+
+impl Engine {
+    /// Prefill `prompt` at the current position (chunks of the batch size, logits for the last one).
+    pub fn prefill(&mut self, prompt: &[u32]) -> Result<()> {
+        let b = self.opt.batch.max(1);
+        let mut i = 0;
+        while i < prompt.len() {
+            let n = (prompt.len() - i).min(b);
+            let last = i + n == prompt.len();
+            self.forward(&prompt[i..i + n], u8::from(last), false)?;
+            i += n;
+        }
+        Ok(())
+    }
+
+    /// The serve protocol's GEN, in process: prefill, then sample up to `max_new` tokens. `on_token(tokens so far)` runs after
+    /// every token and returns true to stop. Same token sequence as `nvme_engine_u` for the same seed.
+    #[allow(clippy::too_many_arguments)]
+    pub fn generate(
+        &mut self,
+        prompt: &[u32],
+        max_new: usize,
+        temp: f32,
+        topp: f32,
+        topk: i32,
+        seed: u64,
+        eos: &[u32],
+        on_token: &mut dyn FnMut(&[u32]) -> bool,
+    ) -> Result<(Vec<u32>, End, GenStats)> {
+        let ctx = self.opt.ctx;
+        ensure!(self.pos + prompt.len() + 1 <= ctx, "context full: position {} + {} prompt tokens > {ctx}", self.pos, prompt.len());
+        let mut rng = crate::sample::Rng::new(seed);
+        let tp = Instant::now();
+        self.prefill(prompt)?;
+        let prefill_ms = tp.elapsed().as_secs_f64() * 1e3;
+        let mut tok = crate::sample::sample(&self.logits, temp, topp, topk, &mut rng) as u32;
+        let mut out: Vec<u32> = Vec::new();
+        let mut tms: Vec<f64> = Vec::new();
+        let (mut sw, mut sr, mut sb) = (0f64, 0f64, 0f64);
+        let end;
+        loop {
+            out.push(tok);
+            let stop = on_token(&out);
+            if eos.contains(&tok) {
+                end = End::Eos;
+                break;
+            }
+            if out.len() >= max_new {
+                self.forward(&[tok], 0, false)?;
+                end = End::Max;
+                break;
+            }
+            if stop {
+                self.forward(&[tok], 0, false)?;
+                end = End::Stop;
+                break;
+            }
+            if self.pos + 1 >= ctx {
+                end = End::Ctx;
+                break;
+            }
+            let t1 = Instant::now();
+            self.forward(&[tok], 1, false)?;
+            tok = crate::sample::sample(&self.logits, temp, topp, topk, &mut rng) as u32;
+            tms.push(t1.elapsed().as_secs_f64() * 1e3);
+            sw += self.timing.wait_ms;
+            sr += self.timing.read_ms;
+            sb += self.timing.bytes_read as f64;
+        }
+        let nd = tms.len();
+        let mut st = GenStats { prefill_ms, decode_tokens: nd, resident_mb: self.pinned_bytes() as f64 / 1e6, ..Default::default() };
+        if nd > 0 {
+            let dec: f64 = tms.iter().sum();
+            let mut s = tms.clone();
+            s.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            st.tok_s = 1000.0 * nd as f64 / dec;
+            st.ms_tok = dec / nd as f64;
+            st.p50_ms = s[((nd - 1) as f64 * 0.5) as usize];
+            st.stall_pct = if dec > 0.0 { 100.0 * sw / dec } else { 0.0 };
+            st.read_mbps = if sr > 0.0 { sb / 1e3 / sr } else { 0.0 };
+            st.streamed_mb_tok = sb / 1e6 / nd as f64;
+        }
+        Ok((out, end, st))
+    }
+}

@@ -1,0 +1,21 @@
+[package]
+name = "cube-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+cube-vault = { path = "../cube-vault" }
+cube-engine = { path = "../cube-engine" }
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+regex = "1"
+tokenizers = { version = "0.21", default-features = false, features = ["fancy-regex"] }
+minijinja = { version = "2", features = ["loop_controls", "json", "builtins", "macros", "multi_template", "preserve_order", "serde"] }
+minijinja-contrib = { version = "2", features = ["pycompat", "datetime"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+num-bigint = "0.4"
+num-traits = "0.2"
+sha1_smol = "1"
+sysinfo = { version = "0.33", default-features = false, features = ["system"] }

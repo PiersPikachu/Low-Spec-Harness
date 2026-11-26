@@ -7,4 +7,4 @@ pub mod serve;
 pub mod simd;
 pub mod store;
 
-pub use model::{Engine, Options, Timing};
+pub use model::{End, Engine, GenStats, Options, Timing};
