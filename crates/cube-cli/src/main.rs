@@ -387,9 +387,6 @@ fn gpu_check(a: &[String]) -> Result<()> {
     let t = Instant::now();
     let mut cpu = cube_engine::Engine::open(Vault::open(vdir)?, o.clone())?;
     let t_open = t.elapsed().as_secs_f64();
-    let t = Instant::now();
-    let mut gpu = cube_gpu::GpuDense::open(&v, ctx, None)?;
-    println!("opened: CPU {t_open:.1}s, GPU {:.1}s ({:.0} MB VRAM)", t.elapsed().as_secs_f64(), gpu.vram_bytes() as f64 / 1e6);
     let cmp = |x: &[f32], y: &[f32]| -> (f64, f64, bool) {
         let (mut d2, mut n2, mut mx) = (0f64, 0f64, 0f64);
         for (p, q) in x.iter().zip(y) {
@@ -400,34 +397,45 @@ fn gpu_check(a: &[String]) -> Result<()> {
         }
         ((d2 / n2.max(1e-30)).sqrt(), mx, cube_engine::sample::argmax(x) == cube_engine::sample::argmax(y))
     };
+    let free = cube_gpu::vram().map_or(0, |v| v.0 as u64);
+    let whole = cube_gpu::vram_needed(&v, ctx, None) + 300_000_000 < free;
     let mut ok = true;
-    // 1. prompt logits + per-layer hidden states
-    cpu.forward(&prompt, 1, true)?;
-    Backend::forward(&mut gpu, &prompt, 1, true)?;
-    let (rl, mx, am) = cmp(&cpu.logits, gpu.logits());
-    println!("prompt logits: relL2 {rl:.2e}  maxabs {mx:.2e}  argmax {}", if am { "same" } else { "DIFFERENT" });
-    ok &= rl < 1e-3 && am;
-    if let (Some(hc), Some(hg)) = (cpu.dump_hidden.as_ref(), gpu.dump_hidden()) {
-        let hid = m.hidden;
-        let worst = (0..m.layers).map(|l| cmp(&hc[l * hid..(l + 1) * hid], &hg[l * hid..(l + 1) * hid]).0).fold(0f64, f64::max);
-        println!("hidden states, worst layer relL2 {worst:.2e}");
-        ok &= worst < 1e-3;
-    }
-    // 2. greedy continuation
+    let oc: Vec<u32>;
     let gen = |b: &mut dyn Backend| -> Result<(Vec<u32>, f64)> {
         b.reset();
-        let t = Instant::now();
         let (out, _, st) = cube_engine::backend::generate(b, &prompt, ntok, 0.0, 1.0, 1, 1, &[], &mut |_| false)?;
-        let _ = t;
         Ok((out, st.tok_s))
     };
-    let (oc, sc) = gen(&mut cpu)?;
-    let (og, sg) = gen(&mut gpu)?;
-    let same = oc.iter().zip(&og).take_while(|(a, b)| a == b).count();
-    println!("greedy {ntok} tokens: {same} identical before the first difference; CPU {sc:.2} tok/s, GPU {sg:.2} tok/s");
-    ok &= same >= ntok.min(8);
+    if whole {
+        let t = Instant::now();
+        let mut gpu = cube_gpu::GpuDense::open(&v, ctx, None)?;
+        println!("opened: CPU {t_open:.1}s, GPU {:.1}s ({:.0} MB VRAM)", t.elapsed().as_secs_f64(), gpu.vram_bytes() as f64 / 1e6);
+        // 1. prompt logits + per-layer hidden states
+        cpu.forward(&prompt, 1, true)?;
+        Backend::forward(&mut gpu, &prompt, 1, true)?;
+        let (rl, mx, am) = cmp(&cpu.logits, gpu.logits());
+        println!("prompt logits: relL2 {rl:.2e}  maxabs {mx:.2e}  argmax {}", if am { "same" } else { "DIFFERENT" });
+        ok &= rl < 1e-3 && am;
+        if let (Some(hc), Some(hg)) = (cpu.dump_hidden.as_ref(), gpu.dump_hidden()) {
+            let hid = m.hidden;
+            let worst = (0..m.layers).map(|l| cmp(&hc[l * hid..(l + 1) * hid], &hg[l * hid..(l + 1) * hid]).0).fold(0f64, f64::max);
+            println!("hidden states, worst layer relL2 {worst:.2e}");
+            ok &= worst < 1e-3;
+        }
+        // 2. greedy continuation
+        let (c, sc) = gen(&mut cpu)?;
+        let (og, sg) = gen(&mut gpu)?;
+        let same = c.iter().zip(&og).take_while(|(a, b)| a == b).count();
+        println!("greedy {ntok} tokens: {same} identical before the first difference; CPU {sc:.2} tok/s, GPU {sg:.2} tok/s");
+        ok &= same >= ntok.min(8);
+        oc = c;
+    } else {
+        println!("the whole model does not fit in free VRAM ({:.2} GB): GPU-resident check skipped, split mode only", free as f64 / 1e9);
+        let (c, sc) = gen(&mut cpu)?;
+        println!("CPU greedy {ntok} tokens: {sc:.2} tok/s");
+        oc = c;
+    }
     // 3. split mode
-    drop(gpu);
     let mut sp = cube_engine::Engine::open(Vault::open(vdir)?, o)?;
     sp.attach_prefix(Box::new(cube_gpu::GpuDense::open(&v, ctx, Some(half))?));
     let (os, ss) = gen(&mut sp)?;
