@@ -342,6 +342,15 @@ impl App {
     fn on_event(&mut self, e: Event) {
         let mut live_ev: Option<J> = None;
         let mut refresh_art = false;
+        if let Event::Act(ev) = &e {
+            if ev["ev"] == "call" && ev["name"] == "artifact" {
+                let n = cube_core::tools::artifact::slug(ev["args"]["name"].as_str().unwrap_or(""));
+                if !n.is_empty() {
+                    let p = ev["args"]["path"].as_str().map(|p| p.replace('\\', "/").trim_matches('/').to_string()).filter(|p| !p.is_empty());
+                    self.t.art_live_target = Some((n, p));
+                }
+            }
+        }
         self.on_event_inner(e, &mut live_ev, &mut refresh_art);
         if let Some(ev) = live_ev {
             tabs::artifacts_live(self, &ev);

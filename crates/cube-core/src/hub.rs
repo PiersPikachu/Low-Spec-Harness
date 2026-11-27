@@ -347,43 +347,130 @@ pub fn vault_name(repo: &str, kind: &str) -> String {
     format!("vault_{}{}", name.to_lowercase().replace('.', "_"), if kind == "gptoss" { "_mxf2" } else { "_huff" })
 }
 
+/// A downloaded Hugging Face checkpoint (config.json + safetensors) found in a model folder, maybe not compressed yet.
+#[derive(Clone, Debug)]
+pub struct Local {
+    pub dir: PathBuf,
+    pub name: String,
+    pub model_type: String,
+    /// "dense" | "moe" | "gptoss"; None = this engine cannot run it
+    pub kind: Option<String>,
+    pub bytes: u64,
+    /// its vault, when one with the expected name exists in a model folder
+    pub vault: Option<PathBuf>,
+}
+
+pub fn kind_of(cfg: &J) -> (String, Option<String>) {
+    let c = if cfg["text_config"].is_object() { &cfg["text_config"] } else { cfg };
+    let mt = c["model_type"].as_str().unwrap_or("?").to_string();
+    let k = if mt == "gpt_oss" {
+        Some("gptoss")
+    } else if mt == "qwen3_moe" {
+        Some("moe")
+    } else if DENSE.contains(&mt.as_str()) && !(mt == "mistral" && !c["sliding_window"].is_null()) {
+        Some("dense")
+    } else {
+        None
+    };
+    (mt, k.map(str::to_string))
+}
+
+/// Checkpoint folders directly inside every model folder and the download folder.
+pub fn local_checkpoints(p: &Paths, c: &Config) -> Vec<Local> {
+    let hw = hardware(p, c);
+    let mut bases: Vec<PathBuf> = crate::paths::model_dirs(p, c).into_iter().map(|m| m.path).collect();
+    if !bases.contains(&hw.dl_dir) {
+        bases.push(hw.dl_dir.clone());
+    }
+    let vaults = crate::paths::find_vaults(p, c);
+    let mut out: Vec<Local> = Vec::new();
+    for b in bases {
+        let Ok(rd) = std::fs::read_dir(&b) else { continue };
+        let mut ds: Vec<PathBuf> = rd.flatten().map(|e| e.path()).filter(|d| d.is_dir()).collect();
+        ds.sort();
+        for d in ds {
+            if crate::paths::is_vault(&d) || !d.join("config.json").exists() || out.iter().any(|x| x.dir == d) {
+                continue;
+            }
+            let st: Vec<PathBuf> = std::fs::read_dir(&d).map(|r| r.flatten().map(|e| e.path()).filter(|f| f.extension().map_or(false, |x| x == "safetensors")).collect()).unwrap_or_default();
+            if st.is_empty() {
+                continue;
+            }
+            let cfg: J = std::fs::read(d.join("config.json")).ok().and_then(|x| serde_json::from_slice(&x).ok()).unwrap_or(J::Null);
+            let (mt, kind) = kind_of(&cfg);
+            let name = d.file_name().unwrap().to_string_lossy().into_owned();
+            let vn = vault_name(&name, kind.as_deref().unwrap_or(""));
+            out.push(Local {
+                bytes: st.iter().map(|f| std::fs::metadata(f).map(|m| m.len()).unwrap_or(0)).sum(),
+                vault: vaults.iter().find(|(n, _)| *n == vn).map(|x| x.1.clone()),
+                dir: d,
+                name,
+                model_type: mt,
+                kind,
+            });
+        }
+    }
+    out
+}
+
+/// pack -> check -> tune a checkpoint folder into `dst_dir`; returns the vault path
+pub fn compress_local(p: &Paths, c: &Config, src: &Path, dst_dir: &Path, repo: Option<&str>, tune_after: bool, log: &mut dyn FnMut(String), stop: &(dyn Fn() -> bool + Sync)) -> Result<PathBuf> {
+    let cfg: J = serde_json::from_slice(&std::fs::read(src.join("config.json")).context("config.json")?)?;
+    let (mt, kind) = kind_of(&cfg);
+    let kind = kind.ok_or_else(|| anyhow!("{mt}: not supported by this engine"))?;
+    let name = src.file_name().unwrap().to_string_lossy().into_owned();
+    let vd = dst_dir.join(vault_name(&name, &kind));
+    let need: u64 = std::fs::read_dir(src)?.flatten().filter(|e| e.path().extension().map_or(false, |x| x == "safetensors")).map(|e| e.metadata().map(|m| m.len()).unwrap_or(0)).sum();
+    std::fs::create_dir_all(dst_dir)?;
+    let free = crate::storage::free_bytes(dst_dir);
+    anyhow::ensure!(free > need + 2_000_000_000, "{} has {:.1} GB free; the vault needs up to {:.1} GB + 2 GB margin", dst_dir.display(), free as f64 / 1e9, need as f64 / 1e9);
+    log(format!("[1/3] compressing {} into {} ({})", src.display(), vd.display(), if kind == "gptoss" { "huffman4 + MXF2 experts, exact to the release" } else { "huffman4, lossless" }));
+    if vd.exists() {
+        std::fs::remove_dir_all(&vd)?;
+    }
+    let opt = cube_pack::Options { codec: cube_vault::Codec::Huff4, convert: false, mxf2: true, repo: repo.map(str::to_string).or(Some(name.clone())) };
+    let t0 = Instant::now();
+    let last = std::cell::Cell::new(Instant::now());
+    let lg = std::cell::RefCell::new(&mut *log);
+    let r = cube_pack::pack(src, &vd, &opt, &|s: &str| {
+        if last.get().elapsed().as_secs_f64() > 2.0 {
+            last.set(Instant::now());
+            (lg.borrow_mut())(format!("  {}", s.trim()));
+        }
+    });
+    drop(lg);
+    let r = match r {
+        Ok(r) => r,
+        Err(e) => {
+            let _ = std::fs::remove_dir_all(&vd);
+            return Err(e);
+        }
+    };
+    log(format!("  packed {:?}: {} streams, {:.2} GB -> {:.2} GB ({:.4}), lossless={}, {:.1} min", r.arch, r.streams, r.raw as f64 / 1e9, r.stored as f64 / 1e9, r.stored as f64 / r.raw.max(1) as f64, !r.lossy, t0.elapsed().as_secs_f64() / 60.0));
+    log("[2/3] checking every stream of the vault".into());
+    let (_, bad) = crate::storage::check_vault(&vd, log)?;
+    anyhow::ensure!(bad == 0, "{bad} streams failed their checksum");
+    if tune_after && !stop() {
+        log("[3/3] tuning the engine settings for this machine".into());
+        tune(p, c, &vd, 64, log)?;
+    }
+    log(format!("ready: {}  (the source checkpoint {} is no longer needed to run it)", vd.display(), src.display()));
+    Ok(vd)
+}
+
 /// download -> pack -> check -> tune; returns the vault path
 pub fn install(p: &Paths, c: &Config, repo: &str, tune_after: bool, log: &mut dyn FnMut(String), stop: &(dyn Fn() -> bool + Sync)) -> Result<PathBuf> {
     let hw = hardware(p, c);
     let a = assess(repo, &hw);
-    let kind = a.kind.clone().ok_or_else(|| anyhow!("{repo}: {}", a.verdict))?;
+    a.kind.clone().ok_or_else(|| anyhow!("{repo}: {}", a.verdict))?;
     let name: String = repo.rsplit('/').next().unwrap_or(repo).chars().map(|c| if c.is_ascii_alphanumeric() || "._-".contains(c) { c } else { '_' }).collect();
     let src = hw.dl_dir.join(&name);
-    let vd = hw.vault_dir.join(vault_name(repo, &kind));
-    log(format!("[1/4] downloading {repo} (~{:.1} GB) to {}", a.download_gb.unwrap_or(0.0), src.display()));
+    log(format!("downloading {repo} (~{:.1} GB) to {}", a.download_gb.unwrap_or(0.0), src.display()));
     download(repo, &src, log, stop)?;
     if stop() {
         bail!("stopped");
     }
-    log(format!("[2/4] compressing into {} ({})", vd.display(), if kind == "gptoss" { "huffman4 + MXF2 experts" } else { "huffman4, lossless" }));
-    if vd.exists() {
-        std::fs::remove_dir_all(&vd)?;
-    }
-    let opt = cube_pack::Options { codec: cube_vault::Codec::Huff4, convert: false, mxf2: true, repo: Some(repo.into()) };
-    let last = std::cell::Cell::new(Instant::now());
-    let lg = std::cell::RefCell::new(&mut *log);
-    let r = cube_pack::pack(&src, &vd, &opt, &|s: &str| {
-        if last.get().elapsed().as_secs_f64() > 2.0 {
-            last.set(Instant::now());
-            (lg.borrow_mut())(format!("  {s}"));
-        }
-    })?;
-    drop(lg);
-    log(format!("  packed {:?}: {} streams, {:.2} GB -> {:.2} GB ({:.4}), lossless={}", r.arch, r.streams, r.raw as f64 / 1e9, r.stored as f64 / 1e9, r.stored as f64 / r.raw.max(1) as f64, !r.lossy));
-    log("[3/4] checking every stream of the vault".into());
-    let (_, bad) = crate::storage::check_vault(&vd, log)?;
-    anyhow::ensure!(bad == 0, "{bad} streams failed their checksum");
-    if tune_after && !stop() {
-        log("[4/4] tuning the engine settings for this machine".into());
-        tune(p, c, &vd, 64, log)?;
-    }
-    log(format!("installed: {}  (source kept in {}; delete it to free space)", vd.display(), src.display()));
-    Ok(vd)
+    compress_local(p, c, &src, &hw.vault_dir, Some(repo), tune_after, log, stop)
 }
 
 const PROMPTS: [&str; 2] = ["In two sentences, explain what a compiler does.", "Write a Python function that reverses a string."];

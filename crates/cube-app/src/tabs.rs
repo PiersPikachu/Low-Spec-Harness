@@ -17,6 +17,7 @@ pub enum Confirm {
     DeleteArtifact(String),
     Revert(String, i64),
     Install(String),
+    Compress(PathBuf, PathBuf),
     Move(PathBuf, PathBuf),
     RemoveFolder(PathBuf),
     Approve(String),
@@ -77,6 +78,8 @@ pub struct State {
     pub art_session: Option<(String, String, String)>,
     pub art_hist_sel: Option<i64>,
     pub art_live: bool,
+    /// (artifact, file) the model was last seen writing; selected when its call completes
+    pub art_live_target: Option<(String, Option<String>)>,
     // models
     pub hub_q: String,
     pub hub_fit: bool,
@@ -89,6 +92,10 @@ pub struct State {
     pub hub_stop: Arc<AtomicBool>,
     pub inst: Vec<Installed>,
     pub inst_sel: Option<PathBuf>,
+    pub loc: Vec<cube_core::hub::Local>,
+    pub loc_sel: Option<PathBuf>,
+    pub loc_dst: Option<PathBuf>,
+    pub loc_tune: bool,
     // folders
     pub st_rows: Vec<FolderRow>,
     pub st_sel: Option<PathBuf>,
@@ -347,9 +354,23 @@ pub fn artifacts_refresh(a: &mut App) {
         let m = arts.meta(&arts.root.join(&n));
         (n, m["title"].as_str().unwrap_or("").to_string(), m["type"].as_str().unwrap_or("").to_string())
     }).collect();
+    // a refresh happens when a call has completed (or by hand): leave the live view and show what was saved,
+    // selecting the artifact and file the model was writing
+    let was_live = std::mem::take(&mut a.t.art_live);
+    if let Some((n, p)) = a.t.art_live_target.take() {
+        if a.t.art_names.iter().any(|x| x.0 == n) {
+            a.t.art_name = Some(n);
+            if p.is_some() {
+                a.t.art_path = p;
+            } else if was_live {
+                a.t.art_path = None;
+            }
+        }
+    }
     if let Some(n) = a.t.art_name.clone() {
-        if a.t.art_names.iter().any(|x| x.0 == n) && !a.t.art_live {
-            art_show(a, &n, true);
+        if a.t.art_names.iter().any(|x| x.0 == n) {
+            let keep = a.t.art_path.is_some();
+            art_show(a, &n, keep);
         }
     }
 }
@@ -430,6 +451,9 @@ pub fn artifacts_live(a: &mut App, ev: &J) {
         if !rel.is_empty() {
             a.t.art_path = Some(rel.clone());
         }
+    }
+    if !name.is_empty() {
+        a.t.art_live_target = Some((name.clone(), if rel.is_empty() { None } else { Some(rel.clone()) }));
     }
     let verb = match ev["action"].as_str().unwrap_or("") {
         "create" => "creating",
@@ -586,7 +610,19 @@ fn zip_artifact(arts: &cube_core::tools::artifact::Artifacts, n: &str, dst: &std
 }
 
 // ====================================================================== Models (Hugging Face -> compressed vault)
+fn slow_folder(a: &App, d: &std::path::Path) -> bool {
+    let (media, bus, _) = cube_core::storage::drive_kind(&a.p, d);
+    media == "HDD" || bus == "USB" || cube_core::storage::read_speed(&a.p, d, false).map_or(false, |s| s < 500.0)
+}
+
 pub fn hub_installed(a: &mut App) {
+    a.t.loc = cube_core::hub::local_checkpoints(&a.p, &a.cfg);
+    if a.t.loc_dst.as_ref().map_or(true, |d| !d.exists()) {
+        // compress onto a fast drive: the engine streams weights from the vault while it runs
+        let dirs: Vec<PathBuf> = paths::model_dirs(&a.p, &a.cfg).into_iter().map(|m| m.path).filter(|d| d.exists()).collect();
+        a.t.loc_dst = dirs.iter().find(|d| !slow_folder(a, d)).cloned().or_else(|| dirs.first().cloned());
+        a.t.loc_tune = true;
+    }
     a.t.inst = paths::find_vaults(&a.p, &a.cfg)
         .into_iter()
         .filter_map(|(name, path)| {
@@ -663,6 +699,26 @@ fn hub_install(a: &mut App, repo: String) {
         }, &|| stop.load(Ordering::SeqCst));
         let _ = tx.send(Job::Log(Tab::Models, match r {
             Ok(v) => format!("done: {}", v.display()),
+            Err(e) => format!("stopped: {e:#}"),
+        }));
+        let _ = tx.send(Job::Done(Tab::Models));
+    });
+}
+
+fn hub_compress(a: &mut App, src: PathBuf, dst: PathBuf) {
+    if a.t.hub_busy || !release_chat(a) {
+        return;
+    }
+    a.t.hub_busy = true;
+    a.t.hub_stop.store(false, Ordering::SeqCst);
+    let (p, c, tx, stop, tune) = (a.p.clone(), a.cfg.clone(), a.jtx.clone(), a.t.hub_stop.clone(), a.t.loc_tune);
+    std::thread::spawn(move || {
+        let t2 = tx.clone();
+        let r = cube_core::hub::compress_local(&p, &c, &src, &dst, None, tune, &mut |s| {
+            let _ = t2.send(Job::Log(Tab::Models, s));
+        }, &|| stop.load(Ordering::SeqCst));
+        let _ = tx.send(Job::Log(Tab::Models, match r {
+            Ok(v) => format!("done: {} - select it under Installed vaults and press 'Use in chat'", v.display()),
             Err(e) => format!("stopped: {e:#}"),
         }));
         let _ = tx.send(Job::Done(Tab::Models));
@@ -809,6 +865,85 @@ pub fn models(a: &mut App, ctx: &egui::Context) {
         if let Some(p) = pick {
             a.t.hub_sel = Some(p);
         }
+        ui.separator();
+        ui.label(RichText::new("Downloaded checkpoints in your model folders (compress one to run it)").color(DIM));
+        let mut pick = None;
+        ui.push_id("hubloc", |ui| {
+            TableBuilder::new(ui)
+                .striped(true)
+                .max_scroll_height(130.0)
+                .column(Column::remainder().at_least(240.0))
+                .column(Column::auto().at_least(90.0))
+                .column(Column::auto().at_least(70.0))
+                .column(Column::remainder().at_least(200.0))
+                .header(20.0, |mut hd| {
+                    for t in ["Checkpoint", "Type", "Size", "Status"] {
+                        hd.col(|ui| {
+                            ui.strong(t);
+                        });
+                    }
+                })
+                .body(|mut b| {
+                    for l in &a.t.loc {
+                        b.row(20.0, |mut r| {
+                            r.col(|ui| {
+                                if ui.selectable_label(a.t.loc_sel.as_ref() == Some(&l.dir), l.dir.display().to_string()).clicked() {
+                                    pick = Some(l.dir.clone());
+                                }
+                            });
+                            r.col(|ui| {
+                                ui.label(&l.model_type);
+                            });
+                            r.col(|ui| {
+                                ui.label(format!("{:.1} GB", l.bytes as f64 / 1e9));
+                            });
+                            r.col(|ui| {
+                                ui.label(match (&l.kind, &l.vault) {
+                                    (None, _) => RichText::new("not supported by this engine").color(BAD),
+                                    (_, Some(v)) => RichText::new(format!("compressed: {}", v.display())).color(ASST),
+                                    _ => RichText::new("not compressed yet").color(TOOL),
+                                });
+                            });
+                        });
+                    }
+                });
+        });
+        if let Some(p) = pick {
+            a.t.loc_sel = Some(p);
+        }
+        ui.horizontal(|ui| {
+            ui.label("Into:");
+            let dirs: Vec<PathBuf> = paths::model_dirs(&a.p, &a.cfg).into_iter().map(|m| m.path).filter(|d| d.exists()).collect();
+            let cur = a.t.loc_dst.clone().map(|d| d.display().to_string()).unwrap_or_default();
+            let mut choice = None;
+            egui::ComboBox::from_id_salt("locdst").width(360.0).selected_text(cur).show_ui(ui, |ui| {
+                for d in &dirs {
+                    let tag = if slow_folder(a, d) { "  (slow drive: fine for storage, slow to run)" } else { "" };
+                    if ui.selectable_label(a.t.loc_dst.as_ref() == Some(d), format!("{}{tag}", d.display())).clicked() {
+                        choice = Some(d.clone());
+                    }
+                }
+            });
+            if let Some(d) = choice {
+                a.t.loc_dst = Some(d);
+            }
+            ui.checkbox(&mut a.t.loc_tune, "Tune after");
+            let sel = a.t.loc_sel.clone().and_then(|s| a.t.loc.iter().find(|l| l.dir == s).cloned());
+            let can = sel.as_ref().map_or(false, |l| l.kind.is_some()) && a.t.loc_dst.is_some() && !a.t.hub_busy;
+            if ui.add_enabled(can, egui::Button::new(RichText::new("Compress selected").color(ACCENT))).clicked() {
+                let l = sel.unwrap();
+                let dst = a.t.loc_dst.clone().unwrap();
+                let est = l.bytes as f64 / 1e9 * if l.kind.as_deref() == Some("gptoss") { 0.97 } else { 0.67 };
+                let msg = format!(
+                    "Compress {}\ninto {}?\n\nThe vault will be about {est:.1} GB. Every stream is checked after packing{}. The checkpoint itself is not changed.{}",
+                    l.dir.display(),
+                    dst.display(),
+                    if a.t.loc_tune { ", then the settings are tuned" } else { "" },
+                    if l.vault.is_some() { "\n\nA vault for it already exists and will be replaced." } else { "" }
+                );
+                a.ask("Compress checkpoint", &msg, Confirm::Compress(l.dir, dst));
+            }
+        });
         ui.separator();
         ui.label(RichText::new("Installed vaults").color(DIM));
         let mut pick = None;
@@ -1620,6 +1755,7 @@ fn do_confirm(a: &mut App, c: Confirm) {
             artifacts_refresh(a);
         }
         Confirm::Install(repo) => hub_install(a, repo),
+        Confirm::Compress(src, dst) => hub_compress(a, src, dst),
         Confirm::Move(src, dst) => {
             if !release_chat(a) {
                 return;
