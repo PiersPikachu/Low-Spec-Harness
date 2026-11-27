@@ -367,8 +367,12 @@ def fetch(u, c, max_bytes=3 << 20, data=None, headers=None, internal=False):
         dns = None if (internal and _own_searxng(u, c)) else check_dns(host_of(u))
         if dns:
             raise PermissionError(dns)
+        own = internal and _own_searxng(u, c)
         h = {"User-Agent": c.get("user_agent") or UA, "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5",
              "Accept-Language": "en-US,en;q=0.8", "Accept-Encoding": "gzip, deflate"}
+        if own:
+            # SearXNG's bot detection expects a reverse proxy to name the client; for a local instance that is us
+            h.update({"X-Forwarded-For": "127.0.0.1", "X-Real-IP": "127.0.0.1"})
         h.update(headers or {})
         req = urllib.request.Request(u, data=data, headers=h)
         try:

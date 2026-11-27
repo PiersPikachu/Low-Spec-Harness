@@ -66,7 +66,9 @@ unless you edit them). Turn the tool on in the Plugins tab; the skill is added a
   answers with a bot check is left alone for 30 minutes. Keyless search is best effort (DuckDuckGo challenges
   automated clients often); an API or your own SearXNG is the reliable route. `searxng_setup.bat` installs SearXNG
   in a WSL distro named `searxng` (127.0.0.1:8888, this PC only, JSON output on) and sets `searxng_url` /
-  `searxng_wsl`; the plugin then starts it on demand. Your own SearXNG address is exempt from the address checks;
+  `searxng_wsl`; the plugin then starts it on demand. SearXNG's Tor engines (ahmia, torch) are removed; its
+  wikipedia / wikidata / openstreetmap engines need a contact for those services - add `"searxng_contact_url":
+  "mailto:you@example.com"` (or a web page) to web_config.json and re-run searxng_setup.bat to enable them. Your own SearXNG address is exempt from the address checks;
   its results are not.
   `open` (target S#/L#/URL + a required `why`) -> page P# with its links L#, `more` -> another part of a page read,
   `status` -> what was read.

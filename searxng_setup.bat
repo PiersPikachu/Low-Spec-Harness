@@ -19,8 +19,13 @@ if !errorlevel! neq 0 (
   wsl -d searxng -u root -- true <nul >> "%LOG%" 2>&1
   if !errorlevel! neq 0 (echo the new searxng distro does not start - see above >> "%LOG%" & goto :done)
 )
+rem optional: "searxng_contact_url" in data\plugins\web_config.json (a URL or mailto: where Wikimedia / OSM can reach you)
+rem enables SearXNG's wikipedia, wikidata and openstreetmap engines
+set "CONTACT="
+if exist "data\plugins\web_config.json" for /f "usebackq delims=" %%c in (`powershell -NoProfile -Command "(Get-Content 'data\plugins\web_config.json' -Raw | ConvertFrom-Json).searxng_contact_url"`) do set "CONTACT=%%c"
 echo Installing SearXNG inside it ^(packages, source, Python environment - several minutes^) ...
 echo ===== setup.sh >> "%LOG%"
+set "WSLENV=CONTACT"
 wsl -d searxng -u root --cd "%~dp0tools\searxng" -- bash -c "tr -d '\r' < setup.sh > /tmp/setup.sh && bash /tmp/setup.sh" <nul >> "%LOG%" 2>&1
 if !errorlevel! neq 0 (echo SearXNG setup failed - see above >> "%LOG%" & goto :done)
 echo Testing from Windows and configuring the web plugin ...
