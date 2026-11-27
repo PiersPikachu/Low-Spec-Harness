@@ -506,6 +506,15 @@ pub fn tune(p: &Paths, base: &Config, vault: &Path, tokens: i64, log: &mut dyn F
             log(format!("note: {} is on a slow drive ({sp:.0} MB/s) - tuning will measure the drive; move it to an SSD folder first for real numbers", vault.display()));
         }
     }
+    // one RAM budget for every candidate: free RAM drifts between loads, and the cache size would change with it
+    if cfg.f64("resident_mb") <= 0.0 {
+        if let Ok(v) = cube_vault::Vault::open(vault) {
+            let free = crate::hw::ram_mb().1;
+            let mb = crate::session::auto_resident_mb(v.meta(), cfg.i64("ctx").max(64) as usize, cfg.bool("kv16"), free).round();
+            cfg.set("resident_mb", json!(mb));
+            log(format!("RAM budget {mb:.0} MB for every candidate (from {free:.0} MB free now), so only the settings under test change"));
+        }
+    }
     log(format!("{} configuration(s) to test: {}", cands.len(), cands.iter().map(|c| c.to_string()).collect::<Vec<_>>().join("; ")));
     let tools = crate::tools::Tools { list: Vec::new(), artifacts: std::sync::Arc::new(crate::tools::artifact::Artifacts::new(p.artifacts())) };
     let mut results = Vec::new();

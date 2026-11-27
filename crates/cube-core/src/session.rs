@@ -67,16 +67,19 @@ impl Session {
         let mut o = Options { ctx: cfg.i64("ctx").max(64) as usize, kv16: cfg.bool("kv16"), ..Default::default() };
         let ram = crate::hw::ram_mb();
         let budget_mb = cfg.f64("resident_mb");
-        let kv_mb = crate::hw::kv_bytes(&m, o.ctx, o.kv16) / 1e6;
         // pin what fits: the configured amount, else free RAM minus a 1.5 GB reserve and the KV cache
-        o.resident_mb = if budget_mb > 0.0 { budget_mb } else { (ram.1 - 1500.0 - kv_mb).max(0.0) * 0.8 };
+        o.resident_mb = if budget_mb > 0.0 { budget_mb } else { auto_resident_mb(&m, o.ctx, o.kv16, ram.1) };
         o.threads = cfg.i64("threads").max(0) as usize;
         if m.moe.is_some() {
             o.batch = 128;
         }
         let total_mb: f64 = (0..vault.n_streams()).map(|i| vault.stream(i).padded as f64).sum::<f64>() / 1e6;
         let how = if m.moe.is_some() {
-            format!("mixture of experts: attention + output pinned, experts in a RAM LRU cache ({:.0} MB, from {:.0} MB free at load), the rest read from the SSD", o.resident_mb, ram.1)
+            format!(
+                "mixture of experts: attention + output pinned, experts in a RAM LRU cache ({:.0} MB, {}), the rest read from the SSD",
+                o.resident_mb,
+                if budget_mb > 0.0 { "fixed RAM budget".to_string() } else { format!("from {:.0} MB free at load", ram.1) }
+            )
         } else if o.resident_mb >= total_mb {
             "CPU, all weights pinned in RAM".to_string()
         } else {
@@ -565,7 +568,10 @@ pub fn open_backend(vault: Vault, o: Options, cfg: &Config, how_cpu: String) -> 
         // the output layer, then experts evicted from the RAM cache, in VRAM: computed there instead of on the CPU / re-read from disk
         let mut e = Engine::open(vault, o)?;
         match cube_gpu::attach_moe_tiers(&mut e, !cfg.bool("cpu_head"), 600_000_000, None) {
-            Ok(what) => return Ok((Box::new(e), format!("{how_cpu}; RAM + VRAM expert tiers ({what})"))),
+            Ok(what) => {
+                let how = if e.head.is_some() { how_cpu.replace("attention + output pinned", "attention pinned, output layer on the GPU") } else { how_cpu };
+                return Ok((Box::new(e), format!("{how}; RAM + VRAM expert tiers ({what})")));
+            }
             Err(err) => {
                 anyhow::ensure!(mode != "gpu", "mode 'gpu': {err:#}");
                 return Ok((Box::new(e), format!("{how_cpu} (VRAM expert tier unavailable: {err:#})")));
@@ -574,6 +580,12 @@ pub fn open_backend(vault: Vault, o: Options, cfg: &Config, how_cpu: String) -> 
     }
     anyhow::ensure!(mode != "gpu" || dense || gptoss, "mode 'gpu': the GPU engine runs dense and gpt-oss models only");
     Ok((Box::new(Engine::open(vault, o)?), how_cpu))
+}
+
+/// RAM (MB) for pinned weights + the expert cache when the config leaves it automatic: free RAM minus a 1.5 GB reserve
+/// and the KV cache, x 0.8.
+pub fn auto_resident_mb(m: &cube_vault::meta::ModelMeta, ctx: usize, kv16: bool, free_mb: f64) -> f64 {
+    (free_mb - 1500.0 - crate::hw::kv_bytes(m, ctx, kv16) / 1e6).max(0.0) * 0.8
 }
 
 /// 12345 -> "12,345" (Python's `{:,}`)

@@ -22,6 +22,7 @@ const USAGE: &str = "usage:
   cube bench <vault> [--prompt N] [--tokens N] [serve options]   greedy prefill + decode timing (synthetic tokens)
   cube chat-bench <vault> [--mode auto|cpu] [--rounds N] [--max-new N] [--threads N] [--cpu-head]
                                         real chat replies in one session, as the app runs them: tok/s per reply, expert tier hits
+  cube tune <vault>                     what the Models tab's Tune does: measure candidate settings, write <vault>/tuned.json
   cube mem                              free RAM, this process, the largest processes
   cube recommend <vault>                the settings the app picks for this vault on this machine now (context sized to RAM)";
 
@@ -78,6 +79,14 @@ fn run() -> Result<()> {
                 println!("{n}");
             }
             println!("{}", serde_json::Value::Object(s));
+            Ok(())
+        }
+        Some("tune") => {
+            let p = cube_core::paths::Paths::discover();
+            p.ensure_dirs();
+            let cfg = cube_core::paths::Config::load(&p);
+            let v = cube_core::paths::canon(std::path::Path::new(a.get(2).context(USAGE)?));
+            cube_core::hub::tune(&p, &cfg, &v, 64, &mut |s| println!("{s}"))?;
             Ok(())
         }
         Some("mem") => {
