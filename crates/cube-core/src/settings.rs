@@ -30,7 +30,7 @@ pub fn recommended(vault_dir: &Path) -> anyhow::Result<(Map<String, J>, Vec<Stri
         s = json!({"temp": 1.0, "top_p": 1.0, "top_k": 0, "max_new": 2048, "ctx": 8192}).as_object().unwrap().clone();
         notes.push("gpt-oss: OpenAI recommends temperature 1.0, top_p 1.0, top_k 0 (off; this engine caps top-k at 128).".into());
         notes.push("It reasons before every answer, so replies need room: max new 2048.".into());
-        notes.push("OpenAI suggests >= 16k context; 8k keeps ~1 GB of RAM for the expert cache (raise it for long chats).".into());
+        notes.push("OpenAI suggests >= 16k context: the context is at least that, longer when RAM is left after the expert cache.".into());
     } else if hermes {
         s = json!({"temp": 0.6, "top_p": 0.95, "top_k": 20, "max_new": 2048, "ctx": 8192}).as_object().unwrap().clone();
         notes.push("Hermes 4 (model card): temperature 0.6, top_p 0.95, top_k 20; reasons inside <think>.".into());
@@ -63,9 +63,42 @@ pub fn recommended(vault_dir: &Path) -> anyhow::Result<(Map<String, J>, Vec<Stri
     let per_tok = (2 * full * m.kv_heads * m.head_dim * bpe) as f64;
     let native = cfgj["max_position_embeddings"].as_i64().unwrap_or(32768).max(2048) as f64;
     let ex_gb: f64 = m.moe.as_ref().map_or(0.0, |mo| (mo.expert_stream0..v.n_streams()).map(|i| v.stream(i).padded as f64).sum::<f64>() / 1e9);
-    let fits = moe && ex_gb < 12.0;
-    let budget = if gptoss && (fits || !moe) { 3.5e9 } else if moe { 1.0e9 } else { 2.0e9 };
-    let cap = (2048f64).max(native.min(((budget / per_tok) as i64 / 1024 * 1024) as f64)) as i64;
+    let kv_of = |ctx: usize| crate::hw::kv_bytes(&m, ctx, kv16);
+    let (cap, fits) = if let Some(mo) = m.moe.as_ref() {
+        // MoE: the context gets the RAM left after the expert cache can hold every expert the VRAM tier cannot
+        // (Session sizes the cache as (free RAM - 1.5 GB - KV) x 0.8 - pinned attention)
+        let nx = m.layers * mo.experts;
+        let xsz = (0..nx).map(|i| v.stream(mo.expert_stream0 + i).padded).max().unwrap_or(1).max(1) as f64;
+        let gpu = gptoss && cube_gpu::gpu().is_some();
+        let vfree = if gpu { cube_gpu::vram().map_or(0.0, |x| x.0 as f64) } else { 0.0 };
+        let head = if gpu && cube_gpu::GpuHead::vram_needed(&v) as f64 + 600e6 < vfree { cube_gpu::GpuHead::vram_needed(&v) as f64 } else { 0.0 };
+        let stride = ((xsz as u64 + 255) & !255) as f64;
+        let vslots = if gpu { ((vfree - 600e6 - head).max(0.0) / stride).floor().min(nx as f64) } else { 0.0 };
+        let ram_need = (nx as f64 - vslots) * xsz;
+        let mut pinned: f64 = (0..m.layers).map(|i| v.stream(i).padded as f64).sum();
+        if head == 0.0 && m.lm_head_stream != m.embed_stream {
+            pinned += v.stream(m.lm_head_stream).padded as f64;
+        }
+        let ram_mb = crate::hw::ram_mb().1;
+        let kv_max = ((ram_mb - 1500.0) * 1e6 - (ram_need + pinned) / 0.8).min(3.5e9);
+        let floor = if gptoss { 16384 } else { 2048 };
+        let mut c = floor;
+        while c + 1024 <= native as usize && kv_of(c + 1024) <= kv_max {
+            c += 1024;
+        }
+        let fits = kv_of(floor) <= kv_max;
+        notes.push(format!(
+            "Experts: {} of {nx} fit in VRAM{}, the RAM cache needs {:.1} GB for the rest; {:.1} GB of free RAM now.",
+            vslots as usize,
+            if head > 0.0 { " (after the output layer)" } else { "" },
+            ram_need / 1e9,
+            ram_mb / 1e3
+        ));
+        (c as i64, fits)
+    } else {
+        let budget = 2.0e9;
+        ((2048f64).max(native.min(((budget / per_tok) as i64 / 1024 * 1024) as f64)) as i64, true)
+    };
     s.insert("ctx".into(), json!(cap));
     s.insert("kv16".into(), json!(kv16));
     notes.push(format!(
@@ -78,7 +111,9 @@ pub fn recommended(vault_dir: &Path) -> anyhow::Result<(Map<String, J>, Vec<Stri
         per_tok * cap as f64 / 1e9
     ));
     if moe && !fits {
-        notes.push(format!("Experts ({ex_gb:.0} GB) do not fit in memory, so the KV cache is kept near 1 GB: every GB given to it removes cached experts and slows decoding. Raise Context if you need it."));
+        notes.push(format!("Not every expert fits in RAM + VRAM even at the minimum context, so some are read from the SSD: every GB given to the context removes ~{:.0} cached experts. Raise Context only if you need it.", 0.8 * (m.layers * m.moe.as_ref().map_or(1, |x| x.experts)) as f64 / ex_gb.max(1e-9)));
+    } else if moe {
+        notes.push("The context is as long as RAM allows while every expert stays cached (RAM + VRAM); a longer context evicts experts and slows decoding.".into());
     }
     let mn = s["max_new"].as_i64().unwrap_or(2048).min(cap / 2);
     s.insert("max_new".into(), json!(mn));

@@ -519,7 +519,7 @@ pub fn tune(p: &Paths, base: &Config, vault: &Path, tokens: i64, log: &mut dyn F
         let t0 = Instant::now();
         let r = (|| -> Result<J> {
             let mut s = crate::session::Session::open(p, &c2)?;
-            log(format!("  loaded {cd}: {}", crate::hw::mem_report()));
+            log(format!("  loaded {cd}, context {}: {}", c2.i64("ctx"), crate::hw::mem_report()));
             let (mut speeds, mut texts, mut early) = (Vec::new(), Vec::new(), false);
             for (i, pr) in PROMPTS.iter().enumerate() {
                 let (new, st) = s.reply(p, &[json!({"role": "user", "content": pr})], "", &tools, &[], 0, &mut |_| {}, &|| false)?;

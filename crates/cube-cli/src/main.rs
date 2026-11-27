@@ -22,7 +22,8 @@ const USAGE: &str = "usage:
   cube bench <vault> [--prompt N] [--tokens N] [serve options]   greedy prefill + decode timing (synthetic tokens)
   cube chat-bench <vault> [--mode auto|cpu] [--rounds N] [--max-new N] [--threads N] [--cpu-head]
                                         real chat replies in one session, as the app runs them: tok/s per reply, expert tier hits
-  cube mem                              free RAM, this process, the largest processes";
+  cube mem                              free RAM, this process, the largest processes
+  cube recommend <vault>                the settings the app picks for this vault on this machine now (context sized to RAM)";
 
 fn main() {
     if let Err(e) = run() {
@@ -71,6 +72,14 @@ fn run() -> Result<()> {
         Some("serve") => serve(&a),
         Some("bench") => bench(&a),
         Some("chat-bench") => chat_bench(&a),
+        Some("recommend") => {
+            let (s, notes) = cube_core::settings::recommended(std::path::Path::new(a.get(2).context(USAGE)?))?;
+            for n in notes {
+                println!("{n}");
+            }
+            println!("{}", serde_json::Value::Object(s));
+            Ok(())
+        }
         Some("mem") => {
             println!("{}", cube_core::hw::mem_report());
             Ok(())
