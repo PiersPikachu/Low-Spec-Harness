@@ -171,8 +171,24 @@ impl StreamStore {
     }
 }
 
+/// A second expert tier on another device (gpt-oss experts in VRAM, computed there). Keys are `layer * experts + expert`.
+pub trait ExpertDevice: Send {
+    fn contains(&self, key: usize) -> bool;
+    /// the experts of the call in progress: mark them most recently used, and never evict them until the next call
+    fn protect(&mut self, keys: &[usize]);
+    /// keep this expert (the device evicts its least recently used one when full); false when it cannot take it
+    fn insert(&mut self, key: usize, blob: &[u8]) -> Result<bool>;
+    /// the expert's output for `m` token rows `xs` (m x hidden) into `out` (m x hidden), biases included
+    fn run(&mut self, key: usize, xs: &[f32], m: usize, out: &mut [f32]) -> Result<()>;
+    fn capacity(&self) -> usize;
+    fn describe(&self) -> String;
+}
+
 /// LRU cache of expert streams.
 pub struct ExpertCache {
+    /// experts evicted from RAM move here; a hit here is computed on the device
+    pub dev: Option<Box<dyn ExpertDevice>>,
+    pub dev_hits: u64,
     file: Arc<File>,
     s0: usize,
     ne: usize,
@@ -192,6 +208,8 @@ impl ExpertCache {
         let xsz = entries.iter().map(|e| e.padded).max().unwrap_or(1).max(1);
         let cap = ((budget / xsz as f64) as usize).max(mo.top_k).min(nx);
         ExpertCache {
+            dev: None,
+            dev_hits: 0,
             file: Arc::new(File::open(v.data_path()).expect("vault.bin")),
             s0: mo.expert_stream0,
             ne: mo.experts,
@@ -211,12 +229,23 @@ impl ExpertCache {
         self.s0
     }
 
-    /// The experts `ids` of layer `l`; misses are read in parallel. Experts used by this call are never evicted by it.
-    pub fn get_many(&mut self, _v: &Vault, l: usize, ids: &[usize], t: &mut Timing) -> Result<Vec<Blob>> {
+    pub fn key(&self, l: usize, e: usize) -> usize {
+        l * self.ne + e
+    }
+
+    /// The experts `ids` of layer `l`: `Some(blob)` in RAM (misses are read in parallel), `None` = held by the device tier.
+    /// Experts used by this call are never evicted by it.
+    pub fn get_many(&mut self, _v: &Vault, l: usize, ids: &[usize], t: &mut Timing) -> Result<Vec<Option<Blob>>> {
         self.tick += 1;
         let stamp = self.tick;
         let keys: Vec<usize> = ids.iter().map(|&e| l * self.ne + e).collect();
-        let miss: Vec<usize> = keys.iter().copied().filter(|k| !self.map.contains_key(k)).collect();
+        let on_dev = |k: &usize, s: &Self| !s.map.contains_key(k) && s.dev.as_ref().map_or(false, |d| d.contains(*k));
+        if let Some(d) = self.dev.as_mut() {
+            d.protect(&keys);
+        }
+        let ndev = keys.iter().filter(|k| on_dev(k, self)).count();
+        self.dev_hits += ndev as u64;
+        let miss: Vec<usize> = keys.iter().copied().filter(|k| !self.map.contains_key(k) && !on_dev(k, self)).collect();
         self.hits += (keys.len() - miss.len()) as u64;
         self.misses += miss.len() as u64;
         for k in &keys {
@@ -246,15 +275,26 @@ impl ExpertCache {
             t.bytes_read += b.len() as u64;
             fresh.insert(k, Arc::new(b));
         }
-        let out: Vec<Blob> = keys.iter().map(|k| self.map.get(k).map(|x| x.0.clone()).unwrap_or_else(|| fresh[k].clone())).collect();
+        let out: Vec<Option<Blob>> = keys.iter().map(|k| self.map.get(k).map(|x| x.0.clone()).or_else(|| fresh.get(k).cloned())).collect();
         for (k, b) in fresh {
             if self.map.len() >= self.cap {
                 let victim = self.map.iter().filter(|(_, v)| v.1 < stamp).min_by_key(|(_, v)| v.1).map(|(k, _)| *k);
                 match victim {
                     Some(vk) => {
-                        self.map.remove(&vk);
+                        // RAM evicts into the device tier: together they hold more experts than either alone
+                        if let Some((vb, _)) = self.map.remove(&vk) {
+                            if let Some(d) = self.dev.as_mut() {
+                                d.insert(vk, &vb)?;
+                            }
+                        }
                     }
-                    None => continue,
+                    None => {
+                        // RAM holds only this call's experts: the device tier takes the overflow instead of dropping it
+                        if let Some(d) = self.dev.as_mut() {
+                            d.insert(k, &b)?;
+                        }
+                        continue;
+                    }
                 }
             }
             self.map.insert(k, (b, stamp));

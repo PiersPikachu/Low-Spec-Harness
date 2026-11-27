@@ -233,14 +233,14 @@ fn engine_opts(a: &[String], from: usize, extra: &mut Vec<(String, String)>) -> 
             "--ctx" => { o.ctx = val(i)?.parse()?; i += 1; }
             "--threads" => { threads = val(i)?.parse()?; i += 1; }
             "--batch" => { o.batch = val(i)?.parse::<usize>()?.max(1); i += 1; }
-            "--resident-mb" => { o.resident_mb = val(i)?.parse()?; i += 1; }
+            "--resident-mb" => { o.resident_mb = if val(i)? == "auto" { -1.0 } else { val(i)?.parse()? }; i += 1; }
             "--expert-mb" => { o.expert_cache_mb = val(i)?.parse()?; i += 1; }
             "--kv16" => o.kv16 = true,
             "--log" => { log = Some(val(i)?.clone()); i += 1; }
             // accepted for compatibility with nvme_engine_u; no effect here
             "--cached" | "--gpu" => {}
             "--gpu-layers" => { i += 1; }
-            "--io-threads" | "--io-chunk" | "--log-detail" | "--vram-mb" => { i += 1; }
+            "--io-threads" | "--io-chunk" | "--log-detail" | "--vram-mb" | "--dev-experts-cpu" => { i += 1; }
             "--prefetch" => { if a.get(i + 1).map_or(false, |x| x.starts_with(|c: char| c.is_ascii_digit())) { i += 1; } }
             "--prompt" | "--tokens" => { extra.push((a[i].clone(), val(i)?.clone())); i += 1; }
             x => bail!("unknown option {x}"),
@@ -256,16 +256,61 @@ fn engine_opts(a: &[String], from: usize, extra: &mut Vec<(String, String)>) -> 
     Ok((o, threads, log))
 }
 
+/// gpt-oss: put a device expert tier under the RAM cache. `--gpu` (VRAM, budget `--vram-mb` or free VRAM - 600 MB) or
+/// `--dev-experts-cpu N` (N slots in host memory, the same tiering without a GPU, for tests). Returns a description.
+fn attach_dev_experts(a: &[String], e: &mut cube_engine::Engine) -> Result<Option<String>> {
+    if e.m.arch != cube_vault::meta::Arch::Gptoss {
+        return Ok(None);
+    }
+    let num = |k: &str| a.iter().position(|x| x == k).and_then(|i| a.get(i + 1)).and_then(|x| x.parse::<u64>().ok());
+    if let Some(n) = num("--dev-experts-cpu") {
+        let d = cube_engine::model::HostExperts::new(&e.m, n as usize)?;
+        let s = cube_engine::store::ExpertDevice::describe(&d);
+        e.attach_expert_device(Box::new(d));
+        return Ok(Some(s));
+    }
+    if a.iter().any(|x| x == "--gpu") {
+        let free = cube_gpu::vram().map_or(0u64, |v| v.0 as u64);
+        let budget = num("--vram-mb").map_or(free.saturating_sub(600_000_000), |mb| mb * 1_000_000);
+        let d = cube_gpu::GpuExperts::open(&e.vault, budget)?;
+        let s = cube_engine::store::ExpertDevice::describe(&d);
+        e.attach_expert_device(Box::new(d));
+        return Ok(Some(s));
+    }
+    Ok(None)
+}
+
+/// `--resident-mb auto`: what the app pins (free RAM - 1.5 GB - KV cache, x 0.8); MoE models also get the app's prompt batch.
+fn auto_ram(v: &Vault, o: &mut cube_engine::Options) {
+    if o.resident_mb < 0.0 {
+        let kv = cube_core::hw::kv_bytes(v.meta(), o.ctx, o.kv16) / 1e6;
+        o.resident_mb = ((cube_core::hw::ram_mb().1 - 1500.0 - kv).max(0.0)) * 0.8;
+        if v.meta().moe.is_some() {
+            o.batch = 128;
+        }
+    }
+}
+
+fn tiers_line(e: &cube_engine::Engine) -> Option<String> {
+    e.expert_tiers().map(|(r, d, m, rc, dc)| format!("M ram_hits={r} vram_hits={d} misses={m} ram_slots={rc} vram_slots={dc} hit_pct={:.1}", 100.0 * (r + d) as f64 / (r + d + m).max(1) as f64))
+}
+
 fn serve(a: &[String]) -> Result<()> {
     let vdir = a.get(2).context(USAGE)?;
     let (o, threads, log) = engine_opts(a, 3, &mut Vec::new())?;
     let t0 = Instant::now();
     let v = Vault::open(vdir)?;
+    let mut o = o;
+    auto_ram(&v, &mut o);
     let (gpu_all, gpu_layers) = (a.iter().any(|x| x == "--gpu"), a.iter().position(|x| x == "--gpu-layers").and_then(|i| a.get(i + 1)).and_then(|x| x.parse::<usize>().ok()).unwrap_or(0));
-    let (e, ring_margin): (Box<dyn cube_engine::Backend>, Option<usize>) = if gpu_all {
+    let gptoss = v.meta().arch == cube_vault::meta::Arch::Gptoss;
+    let (e, ring_margin): (Box<dyn cube_engine::Backend>, Option<usize>) = if gpu_all && !gptoss {
         (Box::new(cube_gpu::GpuDense::open(&v, o.ctx, None)?), None)
     } else {
         let mut e = cube_engine::Engine::open(v, o)?;
+        if let Some(d) = attach_dev_experts(a, &mut e)? {
+            eprintln!("expert tier: {d}");
+        }
         if gpu_layers > 0 {
             let g = cube_gpu::GpuDense::open(&e.vault, e.opt.ctx, Some(gpu_layers))?;
             e.attach_prefix(Box::new(g));
@@ -290,8 +335,14 @@ fn bench(a: &[String]) -> Result<()> {
     let get = |k: &str, d: usize| ex.iter().find(|(x, _)| x == k).and_then(|(_, v)| v.parse().ok()).unwrap_or(d);
     let (np, nt) = (get("--prompt", 8), get("--tokens", 16));
     let t0 = Instant::now();
-    let mut e = cube_engine::Engine::open(Vault::open(vdir)?, o)?;
-    println!("BENCH {:?} layers={} threads={threads} open_s={:.2} pinned_MB={:.0}", e.m.arch, e.m.layers, t0.elapsed().as_secs_f64(), e.pinned_bytes() as f64 / 1e6);
+    let v = Vault::open(vdir)?;
+    let mut o = o;
+    auto_ram(&v, &mut o);
+    let mut e = cube_engine::Engine::open(v, o)?;
+    if let Some(d) = attach_dev_experts(a, &mut e)? {
+        println!("expert tier: {d}");
+    }
+    println!("BENCH {:?} layers={} threads={threads} open_s={:.2} pinned_MB={:.0} resident_MB={:.0}", e.m.arch, e.m.layers, t0.elapsed().as_secs_f64(), e.pinned_bytes() as f64 / 1e6, e.opt.resident_mb);
     let prompt: Vec<u32> = (0..np as u32).map(|i| 100 + i * 7).collect();
     let tp = Instant::now();
     let b = e.opt.batch;
@@ -310,11 +361,13 @@ fn bench(a: &[String]) -> Result<()> {
         println!("T {tok}");
     }
     let tot: f64 = ms.iter().sum();
+    let late: f64 = ms[ms.len() / 2..].iter().sum::<f64>();
+    let late_tok_s = (ms.len() - ms.len() / 2) as f64 * 1e3 / late.max(1e-9);
     ms.sort_by(|x, y| x.partial_cmp(y).unwrap());
     println!("S prompt={np} prefill_ms={pms:.0} prefill_tok_s={:.2} tok_s={:.3} ms_tok={:.1} p50_ms={:.1} stall_pct={:.0} read_MBps={:.0} attn_pct={:.1} streamed_MB_tok={:.0}",
         np as f64 * 1e3 / pms, nt as f64 * 1e3 / tot, tot / nt as f64, ms[ms.len() / 2], 100.0 * w / tot, if r > 0.0 { by as f64 / 1e3 / r } else { 0.0 }, 100.0 * at / tot, by as f64 / 1e6 / nt as f64);
-    println!("D comp_ms_tok={:.1} lm_ms_tok={:.1} wait_ms_tok={:.1}", cm / nt as f64, lm / nt as f64, w / nt as f64);
-    if let Some((h, m, c)) = e.expert_stats() { println!("M hits={h} misses={m} slots={c}"); }
+    println!("D comp_ms_tok={:.1} lm_ms_tok={:.1} wait_ms_tok={:.1} second_half_tok_s={late_tok_s:.3}", cm / nt as f64, lm / nt as f64, w / nt as f64);
+    if let Some(l) = tiers_line(&e) { println!("{l}"); }
     Ok(())
 }
 
@@ -397,6 +450,9 @@ fn gpu_check(a: &[String]) -> Result<()> {
         }
         ((d2 / n2.max(1e-30)).sqrt(), mx, cube_engine::sample::argmax(x) == cube_engine::sample::argmax(y))
     };
+    if m.arch == cube_vault::meta::Arch::Gptoss {
+        return gpu_check_experts(a, vdir, &prompt, o, ntok, cpu, &cmp);
+    }
     let free = cube_gpu::vram().map_or(0, |v| v.0 as u64);
     let whole = cube_gpu::vram_needed(&v, ctx, None) + 300_000_000 < free;
     let mut ok = true;
@@ -450,6 +506,50 @@ fn gpu_check(a: &[String]) -> Result<()> {
     println!("GPU CHECK {}", if ok { "PASS" } else { "FAIL" });
     if !ok {
         bail!("GPU results differ from the CPU engine");
+    }
+    Ok(())
+}
+
+/// gpt-oss: the CPU engine alone against CPU + a VRAM expert tier with a tiny RAM cache, so nearly every expert is computed on the GPU.
+fn gpu_check_experts(a: &[String], vdir: &str, prompt: &[u32], o: cube_engine::Options, ntok: usize, mut cpu: cube_engine::Engine, cmp: &dyn Fn(&[f32], &[f32]) -> (f64, f64, bool)) -> Result<()> {
+    use cube_engine::Backend;
+    let mut ok = true;
+    let mut t = cube_engine::Engine::open(Vault::open(vdir)?, cube_engine::Options { expert_cache_mb: 1.0, ..o })?;
+    let desc = match attach_dev_experts(a, &mut t)? {
+        Some(d) => d,
+        None => {
+            let free = cube_gpu::vram().map_or(0u64, |v| v.0 as u64);
+            let d = cube_gpu::GpuExperts::open(&t.vault, free.saturating_sub(600_000_000))?;
+            let s = cube_engine::store::ExpertDevice::describe(&d);
+            t.attach_expert_device(Box::new(d));
+            s
+        }
+    };
+    println!("expert tier: {desc}; RAM cache forced to ~1 MB so evicted experts run from the device tier");
+    // pass 1 fills the tiers, pass 2 runs (mostly) from the device tier
+    for pass in 1..=2 {
+        cpu.reset();
+        t.reset();
+        cpu.forward(prompt, 1, false)?;
+        t.forward(prompt, 1, false)?;
+        let (rl, mx, am) = cmp(&cpu.logits, &t.logits);
+        println!("pass {pass} prompt logits: relL2 {rl:.2e} maxabs {mx:.2e} argmax {}  {}", if am { "same" } else { "DIFFERENT" }, tiers_line(&t).unwrap_or_default());
+        ok &= rl < 1e-3 && am;
+    }
+    let gen = |b: &mut dyn cube_engine::Backend| -> Result<(Vec<u32>, f64)> {
+        b.reset();
+        let (out, _, st) = cube_engine::backend::generate(b, prompt, ntok, 0.0, 1.0, 1, 1, &[], &mut |_| false)?;
+        Ok((out, st.tok_s))
+    };
+    let (c, sc) = gen(&mut cpu)?;
+    let (g, sg) = gen(&mut t)?;
+    let same = c.iter().zip(&g).take_while(|(x, y)| x == y).count();
+    println!("greedy {ntok} tokens: {same} identical before the first difference; CPU {sc:.2} tok/s, tiered {sg:.2} tok/s");
+    println!("{}", tiers_line(&t).unwrap_or_default());
+    ok &= same >= ntok.min(8);
+    println!("GPU CHECK {}", if ok { "PASS" } else { "FAIL" });
+    if !ok {
+        bail!("device-tier results differ from the CPU engine");
     }
     Ok(())
 }

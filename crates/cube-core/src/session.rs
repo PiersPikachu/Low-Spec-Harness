@@ -560,7 +560,23 @@ pub fn open_backend(vault: Vault, o: Options, cfg: &Config, how_cpu: String) -> 
         }
     }
     anyhow::ensure!(mode != "gpu" || gpu.is_some(), "mode 'gpu': no CUDA device found");
-    anyhow::ensure!(mode != "gpu" || dense, "mode 'gpu': the GPU engine runs dense models only");
+    let gptoss = vault.meta().arch == cube_vault::meta::Arch::Gptoss;
+    if let Some(g) = gpu.as_ref().filter(|_| gptoss) {
+        // experts evicted from the RAM cache drop into VRAM and are computed there instead of being re-read from disk
+        let budget = free.saturating_sub(600_000_000);
+        match cube_gpu::GpuExperts::open(&vault, budget) {
+            Ok(d) => {
+                let what = d.describe_short();
+                let mut e = Engine::open(vault, o)?;
+                e.attach_expert_device(Box::new(d));
+                return Ok((Box::new(e), format!("{how_cpu}; RAM + VRAM expert tiers ({what} on {})", g.name)));
+            }
+            Err(err) => {
+                anyhow::ensure!(mode != "gpu", "mode 'gpu': {err:#}");
+            }
+        }
+    }
+    anyhow::ensure!(mode != "gpu" || dense || gptoss, "mode 'gpu': the GPU engine runs dense and gpt-oss models only");
     Ok((Box::new(Engine::open(vault, o)?), how_cpu))
 }
 

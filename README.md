@@ -7,6 +7,7 @@ streaming weights from the SSD, with a native window (egui) for chat, tools, art
 build.bat          build everything (cargo) + unit tests
 run.bat            start the window (target\release\cube-harness.exe)
 gpu_check.bat V    GPU engine vs CPU engine on a dense vault
+bench_gptoss.bat V gpt-oss: VRAM expert tier check, then speed CPU-only vs RAM+VRAM expert tiers
 target\release\cube.exe ...   command line (below)
 data\              everything the harness writes (created on first run)
 ```
@@ -43,13 +44,16 @@ cube gpu-check <vault>
   (`tools/parity_vs_c.py`); passes `verify_engine.py synth` and `real` (Qwen3-0.6B) against the numpy reference.
 * **Chat templates**: token-identical to `transformers.apply_chat_template` (Qwen3, Qwen3-MoE, gpt-oss; tools, tool calls, thinking).
 * **Window**: chat with tool calls and artifact creation end to end on Qwen3-0.6B.
-* **GPU engine: compiled, not yet run** (no GPU where it was written). Run `gpu_check.bat <dense vault>` first; it compares
-  logits, hidden states, greedy text and split mode against the CPU engine and prints PASS / FAIL.
+* **GPU engine** (RTX 3060 Laptop): Qwen3-0.6B GPU-resident logits relL2 1.9e-6, greedy 32/32 identical, 47.5 tok/s;
+  Qwen3-4B split relL2 1.4e-6.
+* **gpt-oss VRAM expert tier**: experts evicted from the RAM cache drop into VRAM (stored as in the vault, MXF4/MXF2) and run there.
+  Tiering logic checked without a GPU (`--dev-experts-cpu N`: same tiers, host memory): serve output bit-identical to
+  `nvme_engine_u` with 3 and 1000 device slots. GPU kernels: run `bench_gptoss.bat`, which checks them against the CPU first.
 
 ## Not ported yet
 
 * Speculative decoding with a draft model (`spec.py`).
-* The VRAM expert tier and next-layer expert prediction for MoE models (MoE runs on the CPU with the RAM expert cache).
+* Next-layer expert prediction / prefetch; the VRAM expert tier for Qwen3-MoE (gpt-oss has it).
 * Rank-1 weight patches (`--patch`).
 * Single-file v8 vaults (manifest and weights in one file): specified, not implemented.
 

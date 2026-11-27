@@ -569,3 +569,171 @@ impl LayerPrefix for GpuDense {
         self.sync()
     }
 }
+
+// ---------------------------------------------------------------- gpt-oss experts in VRAM
+
+/// gpt-oss experts held in VRAM (MXF4/MXF2 blobs exactly as in the vault) and computed there; the tier under the RAM cache.
+pub struct GpuExperts {
+    gpu: Arc<Gpu>,
+    k: Arc<Kernels>,
+    mem: Mem,
+    pool: u64,
+    stride: u64,
+    slots: Vec<Option<usize>>,
+    /// per slot: device addresses of gate_up MXF, gate_up bias, down MXF, down bias
+    offs: Vec<[u64; 4]>,
+    /// key -> (slot, last use)
+    map: std::collections::HashMap<usize, (usize, u64)>,
+    protected: Vec<usize>,
+    clock: u64,
+    hid: usize,
+    inter: usize,
+    lim: f32,
+    al: f32,
+    mmax: usize,
+    xb: u64,
+    gub: u64,
+    ab: u64,
+    db: u64,
+}
+
+unsafe impl Send for GpuExperts {}
+
+impl GpuExperts {
+    /// Slots for as many experts as fit in `budget` bytes of VRAM.
+    pub fn open(v: &Vault, budget: u64) -> Result<GpuExperts> {
+        let g = gpu().context("no CUDA device")?;
+        g.ctx.bind_to_thread().map_err(|e| anyhow!("{e:?}"))?;
+        let k = kernels(&g)?;
+        let m = v.meta();
+        ensure!(m.arch == Arch::Gptoss, "the VRAM expert tier is for gpt-oss vaults");
+        let mo = m.moe.as_ref().context("no MoE metadata")?;
+        let go = m.gptoss.as_ref().context("no gpt-oss metadata")?;
+        let nx = m.layers * mo.experts;
+        let xsz = (0..nx).map(|i| v.stream(mo.expert_stream0 + i).padded).max().unwrap_or(0);
+        let stride = (xsz + 255) & !255;
+        let mmax = 128usize;
+        let work = (4 * mmax * (2 * m.hidden + 3 * mo.inter)) as u64;
+        ensure!(budget > work + stride, "not enough VRAM for even one expert");
+        let n = (((budget - work) / stride) as usize).min(nx);
+        let mut mem = Mem { ptrs: Vec::new(), bytes: 0 };
+        let pool = mem.alloc((n as u64 * stride) as usize)?;
+        let xb = mem.alloc(4 * mmax * m.hidden)?;
+        let gub = mem.alloc(4 * mmax * 2 * mo.inter)?;
+        let ab = mem.alloc(4 * mmax * mo.inter)?;
+        let db = mem.alloc(4 * mmax * m.hidden)?;
+        Ok(GpuExperts {
+            gpu: g,
+            k,
+            mem,
+            pool,
+            stride,
+            slots: vec![None; n],
+            offs: vec![[0; 4]; n],
+            map: std::collections::HashMap::new(),
+            protected: Vec::new(),
+            clock: 0,
+            hid: m.hidden,
+            inter: mo.inter,
+            lim: go.swiglu_limit as f32,
+            al: go.swiglu_alpha as f32,
+            mmax,
+            xb,
+            gub,
+            ab,
+            db,
+        })
+    }
+
+    pub fn vram_bytes(&self) -> u64 {
+        self.mem.bytes
+    }
+
+    pub fn describe_short(&self) -> String {
+        format!("{} experts, {:.1} GB", self.slots.len(), self.mem.bytes as f64 / 1e9)
+    }
+
+    fn launch(&self, name: &str, grid: u32, block: u32, a: Vec<Box<dyn std::any::Any>>) -> Result<()> {
+        let f = *self.k.f.get(name).context("kernel")?;
+        let mut a = a;
+        let mut ptrs: Vec<*mut c_void> = Vec::with_capacity(a.len());
+        for x in a.iter_mut() {
+            let p: *mut c_void = if let Some(v) = x.downcast_mut::<u64>() {
+                v as *mut u64 as *mut c_void
+            } else if let Some(v) = x.downcast_mut::<i32>() {
+                v as *mut i32 as *mut c_void
+            } else if let Some(v) = x.downcast_mut::<f32>() {
+                v as *mut f32 as *mut c_void
+            } else {
+                bail!("kernel {name}: unsupported argument type");
+            };
+            ptrs.push(p);
+        }
+        unsafe { cu::launch_kernel(f, (grid.max(1), 1, 1), (block, 1, 1), 0, std::ptr::null_mut(), &mut ptrs) }.map_err(|e| anyhow!("kernel {name}: {e:?}"))
+    }
+}
+
+impl cube_engine::store::ExpertDevice for GpuExperts {
+    fn contains(&self, key: usize) -> bool {
+        self.map.contains_key(&key)
+    }
+    fn protect(&mut self, keys: &[usize]) {
+        self.clock += 1;
+        for k in keys {
+            if let Some(x) = self.map.get_mut(k) {
+                x.1 = self.clock;
+            }
+        }
+        self.protected = keys.to_vec();
+    }
+    fn insert(&mut self, key: usize, blob: &[u8]) -> Result<bool> {
+        if self.map.contains_key(&key) || blob.len() as u64 > self.stride || self.slots.is_empty() {
+            return Ok(false);
+        }
+        let subs = cube_vault::stream::sub_blobs(blob)?;
+        ensure!(subs.len() == 4 && subs[0].starts_with(b"MXF") && subs[2].starts_with(b"MXF"), "not a gpt-oss expert stream");
+        ensure!(subs[1].starts_with(b"F32 ") && subs[3].starts_with(b"F32 "), "gpt-oss expert without F32 biases");
+        let so = |i: usize| cube_vault::stream::sub_offset(blob, i);
+        let slot = match self.slots.iter().position(|s| s.is_none()) {
+            Some(i) => i,
+            None => {
+                let victim = self.map.iter().filter(|(k, _)| !self.protected.contains(k)).min_by_key(|(_, v)| v.1).map(|(k, v)| (*k, v.0));
+                let Some((vk, vs)) = victim else { return Ok(false) };
+                self.map.remove(&vk);
+                vs
+            }
+        };
+        self.gpu.ctx.bind_to_thread().map_err(|e| anyhow!("{e:?}"))?;
+        unsafe { cu::memcpy_htod_sync(self.pool + slot as u64 * self.stride, blob) }.map_err(|e| anyhow!("{e:?}"))?;
+        let base = self.pool + slot as u64 * self.stride;
+        self.offs[slot] = [base + so(0), base + so(1) + 8, base + so(2), base + so(3) + 8];
+        self.slots[slot] = Some(key);
+        self.map.insert(key, (slot, self.clock));
+        Ok(true)
+    }
+    fn run(&mut self, key: usize, xs: &[f32], m: usize, out: &mut [f32]) -> Result<()> {
+        let (slot, _) = *self.map.get(&key).context("expert not in VRAM")?;
+        self.gpu.ctx.bind_to_thread().map_err(|e| anyhow!("{e:?}"))?;
+        let [gu, bgu, dn, bd] = self.offs[slot];
+        let (hid, inter) = (self.hid, self.inter);
+        let mut t = 0;
+        while t < m {
+            let n = (m - t).min(self.mmax);
+            unsafe { cu::memcpy_htod_sync(self.xb, &xs[t * hid..(t + n) * hid]) }.map_err(|e| anyhow!("{e:?}"))?;
+            let rows_gu = 2 * inter;
+            self.launch("mxf4", (rows_gu as u32).div_ceil(8), 256, args![gu, rows_gu as i32, hid as i32, self.xb, self.gub, n as i32])?;
+            self.launch("act_gptoss", ((n * inter) as u32).div_ceil(256), 256, args![self.gub, bgu, self.ab, n as i32, inter as i32, self.lim, self.al])?;
+            self.launch("mxf4", (hid as u32).div_ceil(8), 256, args![dn, hid as i32, inter as i32, self.ab, self.db, n as i32])?;
+            self.launch("add_bias", ((n * hid) as u32).div_ceil(256), 256, args![self.db, bd, n as i32, hid as i32])?;
+            unsafe { cu::memcpy_dtoh_sync(&mut out[t * hid..(t + n) * hid], self.db) }.map_err(|e| anyhow!("{e:?}"))?;
+            t += n;
+        }
+        Ok(())
+    }
+    fn capacity(&self) -> usize {
+        self.slots.len()
+    }
+    fn describe(&self) -> String {
+        format!("{} expert slots in VRAM ({:.0} MB) on {}", self.slots.len(), self.mem.bytes as f64 / 1e6, self.gpu.name)
+    }
+}

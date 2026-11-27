@@ -517,7 +517,7 @@ impl Engine {
         }
         let plan = Self::plan(&sel, &wt, ne);
         let ids: Vec<usize> = plan.iter().map(|p| p.0).collect();
-        let blobs = self.experts.as_mut().unwrap().get_many(&self.vault, l, &ids, &mut self.timing)?;
+        let blobs: Vec<Blob> = self.experts.as_mut().unwrap().get_many(&self.vault, l, &ids, &mut self.timing)?.into_iter().map(|b| b.expect("Qwen MoE experts have no device tier")).collect();
         let codec = m.codec;
         fn mk(codec: Codec, b: &[u8]) -> Result<Mat<'_>> {
             Ok(match codec {
@@ -592,42 +592,28 @@ impl Engine {
         let ids: Vec<usize> = plan.iter().map(|p| p.0).collect();
         let blobs = self.experts.as_mut().unwrap().get_many(&self.vault, l, &ids, &mut self.timing)?;
         let mut dall: Vec<Vec<f32>> = Vec::with_capacity(plan.len());
-        for ((_, rows, _), blob) in plan.iter().zip(&blobs) {
-            let subs = stream::sub_blobs(blob)?;
-            let bgu = mxf::f32_view(subs[1])?;
-            let bd = mxf::f32_view(subs[3])?;
+        for ((e, rows, _), blob) in plan.iter().zip(&blobs) {
+            let Some(blob) = blob else {
+                // held in VRAM: computed on the GPU
+                let ec = self.experts.as_mut().unwrap();
+                let key = ec.key(l, *e);
+                let mm = rows.len();
+                let mut xs = vec![0f32; mm * hid];
+                for (i, &r) in rows.iter().enumerate() {
+                    xs[i * hid..(i + 1) * hid].copy_from_slice(&xn[r * hid..(r + 1) * hid]);
+                }
+                let mut d = vec![0f32; mm * hid];
+                ec.dev.as_mut().unwrap().run(key, &xs, mm, &mut d)?;
+                dall.push(d);
+                continue;
+            };
             let mm = rows.len();
             let mut xs = vec![0f32; mm * hid];
             for (i, &r) in rows.iter().enumerate() {
                 xs[i * hid..(i + 1) * hid].copy_from_slice(&xn[r * hid..(r + 1) * hid]);
             }
-            let gu_m = Mat::Mxf(mxf::Mxf::parse(subs[0])?);
-            let mut gu = vec![0f32; mm * 2 * inter];
-            gu_m.mv(&xs, &mut gu, mm);
-            let mut a = vec![0f32; mm * inter];
-            for i in 0..mm {
-                for j in 0..inter {
-                    let mut gt = gu[i * 2 * inter + 2 * j] + bgu[2 * j];
-                    let mut up = gu[i * 2 * inter + 2 * j + 1] + bgu[2 * j + 1];
-                    if gt > lim {
-                        gt = lim;
-                    }
-                    if up > lim {
-                        up = lim;
-                    }
-                    if up < -lim {
-                        up = -lim;
-                    }
-                    a[i * inter + j] = (up + 1.0f32) * (gt / (1.0f32 + (-al * gt).exp()));
-                }
-            }
             let mut d = vec![0f32; mm * hid];
-            Mat::Mxf(mxf::Mxf::parse(subs[2])?).mv(&a, &mut d, mm);
-            for i in 0..mm {
-                for kx in 0..hid {
-                    d[i * hid + kx] += bd[kx];
-                }
-            }
+            gptoss_expert(blob, &xs, mm, hid, inter, lim, al, &mut d)?;
             dall.push(d);
         }
         let mut o = vec![0f32; n * hid];
@@ -643,6 +629,98 @@ impl Engine {
             h[i] += o[i];
         }
         Ok(())
+    }
+}
+
+/// One gpt-oss expert on the CPU: `out` (m x hid) = down(clamped SwiGLU(gate_up(xs) + b_gu)) + b_down.
+#[allow(clippy::too_many_arguments)]
+pub fn gptoss_expert(blob: &[u8], xs: &[f32], mm: usize, hid: usize, inter: usize, lim: f32, al: f32, d: &mut [f32]) -> Result<()> {
+    let subs = stream::sub_blobs(blob)?;
+    let bgu = mxf::f32_view(subs[1])?;
+    let bd = mxf::f32_view(subs[3])?;
+    let gu_m = Mat::Mxf(mxf::Mxf::parse(subs[0])?);
+    let mut gu = vec![0f32; mm * 2 * inter];
+    gu_m.mv(xs, &mut gu, mm);
+    let mut a = vec![0f32; mm * inter];
+    for i in 0..mm {
+        for j in 0..inter {
+            let mut gt = gu[i * 2 * inter + 2 * j] + bgu[2 * j];
+            let mut up = gu[i * 2 * inter + 2 * j + 1] + bgu[2 * j + 1];
+            if gt > lim {
+                gt = lim;
+            }
+            if up > lim {
+                up = lim;
+            }
+            if up < -lim {
+                up = -lim;
+            }
+            a[i * inter + j] = (up + 1.0f32) * (gt / (1.0f32 + (-al * gt).exp()));
+        }
+    }
+    Mat::Mxf(mxf::Mxf::parse(subs[2])?).mv(&a, d, mm);
+    for i in 0..mm {
+        for kx in 0..hid {
+            d[i * hid + kx] += bd[kx];
+        }
+    }
+    Ok(())
+}
+
+/// Stand-in device tier that holds experts in host memory and computes them with `gptoss_expert`: exercises the tiering
+/// logic exactly as the VRAM tier would, on machines without a GPU (tests, `--dev-experts-cpu`).
+pub struct HostExperts {
+    pub map: std::collections::HashMap<usize, (Vec<u8>, u64)>,
+    pub cap: usize,
+    protected: Vec<usize>,
+    clock: u64,
+    hid: usize,
+    inter: usize,
+    lim: f32,
+    al: f32,
+}
+
+impl HostExperts {
+    pub fn new(m: &ModelMeta, cap: usize) -> Result<HostExperts> {
+        let mo = m.moe.as_ref().context("no MoE metadata")?;
+        let go = m.gptoss.as_ref().context("no gpt-oss metadata")?;
+        Ok(HostExperts { map: Default::default(), cap, protected: vec![], clock: 0, hid: m.hidden, inter: mo.inter, lim: go.swiglu_limit as f32, al: go.swiglu_alpha as f32 })
+    }
+}
+
+impl crate::store::ExpertDevice for HostExperts {
+    fn contains(&self, key: usize) -> bool {
+        self.map.contains_key(&key)
+    }
+    fn protect(&mut self, keys: &[usize]) {
+        self.clock += 1;
+        for k in keys {
+            if let Some(x) = self.map.get_mut(k) {
+                x.1 = self.clock;
+            }
+        }
+        self.protected = keys.to_vec();
+    }
+    fn insert(&mut self, key: usize, blob: &[u8]) -> Result<bool> {
+        if self.map.contains_key(&key) || self.cap == 0 {
+            return Ok(false);
+        }
+        if self.map.len() >= self.cap {
+            let Some(vk) = self.map.iter().filter(|(k, _)| !self.protected.contains(k)).min_by_key(|(_, v)| v.1).map(|(k, _)| *k) else { return Ok(false) };
+            self.map.remove(&vk);
+        }
+        self.map.insert(key, (blob.to_vec(), self.clock));
+        Ok(true)
+    }
+    fn run(&mut self, key: usize, xs: &[f32], m: usize, out: &mut [f32]) -> Result<()> {
+        let b = &self.map.get(&key).context("expert not held")?.0;
+        gptoss_expert(b, xs, m, self.hid, self.inter, self.lim, self.al, out)
+    }
+    fn capacity(&self) -> usize {
+        self.cap
+    }
+    fn describe(&self) -> String {
+        format!("{} expert slots in host memory (test tier)", self.cap)
     }
 }
 
@@ -895,6 +973,17 @@ impl Engine {
         on_token: &mut dyn FnMut(&[u32]) -> bool,
     ) -> Result<(Vec<u32>, End, GenStats)> {
         crate::backend::generate(self, prompt, max_new, temp, topp, topk, seed, eos, on_token)
+    }
+
+    /// Add a device tier under the RAM expert cache (gpt-oss experts in VRAM).
+    pub fn attach_expert_device(&mut self, d: Box<dyn crate::store::ExpertDevice>) {
+        if let Some(e) = self.experts.as_mut() {
+            e.dev = Some(d);
+        }
+    }
+    /// (RAM hits, device hits, misses, RAM slots, device slots)
+    pub fn expert_tiers(&self) -> Option<(u64, u64, u64, usize, usize)> {
+        self.experts.as_ref().map(|e| (e.hits - e.dev_hits, e.dev_hits, e.misses, e.capacity(), e.dev.as_ref().map_or(0, |d| d.capacity())))
     }
 
     /// Run layers `[0, n)` elsewhere (the GPU) from now on; their pinned streams are released.
