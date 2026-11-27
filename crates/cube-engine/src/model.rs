@@ -1038,4 +1038,7 @@ impl crate::backend::Backend for Engine {
     fn expert_stats(&self) -> Option<(u64, u64, usize)> {
         Engine::expert_stats(self)
     }
+    fn expert_tiers(&self) -> Option<(u64, u64, u64, usize, usize)> {
+        Engine::expert_tiers(self)
+    }
 }

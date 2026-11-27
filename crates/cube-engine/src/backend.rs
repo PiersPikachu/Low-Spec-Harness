@@ -27,6 +27,10 @@ pub trait Backend: Send {
     fn expert_stats(&self) -> Option<(u64, u64, usize)> {
         None
     }
+    /// (RAM hits, device hits, misses, RAM slots, device slots)
+    fn expert_tiers(&self) -> Option<(u64, u64, u64, usize, usize)> {
+        None
+    }
 }
 
 /// Layers `[0, layers())` of a model run on another device (split mode): hidden states in, hidden states out.

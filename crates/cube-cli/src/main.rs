@@ -19,7 +19,9 @@ const USAGE: &str = "usage:
   cube chat <vault> [--prompt TEXT] [--tools a,b] [--think] [--max-new N] [--ctx N] [--greedy] [--seed N]
                                         talk to a model (with tools); without --prompt reads lines from stdin
   cube gpu-check <vault> [--ctx N] [--tokens N] [--layers N]   GPU engine vs CPU engine: logits, hidden states, greedy text, speed
-  cube bench <vault> [--prompt N] [--tokens N] [serve options]   greedy prefill + decode timing";
+  cube bench <vault> [--prompt N] [--tokens N] [serve options]   greedy prefill + decode timing (synthetic tokens)
+  cube chat-bench <vault> [--mode auto|cpu] [--rounds N] [--max-new N] [--threads N]
+                                        real chat replies in one session, as the app runs them: tok/s per reply, expert tier hits";
 
 fn main() {
     if let Err(e) = run() {
@@ -67,6 +69,7 @@ fn run() -> Result<()> {
         }
         Some("serve") => serve(&a),
         Some("bench") => bench(&a),
+        Some("chat-bench") => chat_bench(&a),
         Some("chat") => chat(&a),
         Some("gpu-check") => gpu_check(&a),
         Some("verify-source") => {
@@ -291,7 +294,7 @@ fn auto_ram(v: &Vault, o: &mut cube_engine::Options) {
     }
 }
 
-fn tiers_line(e: &cube_engine::Engine) -> Option<String> {
+fn tiers_line(e: &dyn cube_engine::Backend) -> Option<String> {
     e.expert_tiers().map(|(r, d, m, rc, dc)| format!("M ram_hits={r} vram_hits={d} misses={m} ram_slots={rc} vram_slots={dc} hit_pct={:.1}", 100.0 * (r + d) as f64 / (r + d + m).max(1) as f64))
 }
 
@@ -551,5 +554,60 @@ fn gpu_check_experts(a: &[String], vdir: &str, prompt: &[u32], o: cube_engine::O
     if !ok {
         bail!("device-tier results differ from the CPU engine");
     }
+    Ok(())
+}
+
+const CHAT_BENCH: [&str; 6] = [
+    "In two sentences, explain what a compiler does.",
+    "Write a Python function that reverses a string.",
+    "What were the main causes of the First World War?",
+    "Give me a recipe for a simple tomato soup.",
+    "Explain the difference between TCP and UDP to a beginner.",
+    "Write a short poem about autumn rain.",
+];
+
+/// chat-bench <vault> [--mode auto|cpu|gpu|split] [--rounds N] [--max-new N] [--threads N]: real chat replies in one session
+/// (the app's engine choice and RAM budget), tok/s per reply and the expert tiers' hits - warm-cache speed on real text.
+fn chat_bench(a: &[String]) -> Result<()> {
+    use cube_core::{paths, session::Session, tools::Tools};
+    let p = paths::Paths::discover();
+    p.ensure_dirs();
+    let mut cfg = paths::Config::load(&p);
+    let vault = a.get(2).context(USAGE)?;
+    cfg.set("vault", serde_json::json!(cube_core::paths::canon(std::path::Path::new(vault)).to_string_lossy().into_owned()));
+    cfg.set("greedy", serde_json::json!(true));
+    cfg.set("think", serde_json::json!(false));
+    cfg.set("max_new", serde_json::json!(128));
+    let mut rounds = 2usize;
+    let mut i = 3;
+    while i < a.len() {
+        let v = a.get(i + 1).cloned().unwrap_or_default();
+        match a[i].as_str() {
+            "--mode" => cfg.set("mode", serde_json::json!(v)),
+            "--rounds" => rounds = v.parse()?,
+            "--max-new" => cfg.set("max_new", serde_json::json!(v.parse::<i64>()?)),
+            "--threads" => cfg.set("threads", serde_json::json!(v.parse::<i64>()?)),
+            x => bail!("unknown option {x}"),
+        }
+        i += 2;
+    }
+    let t0 = Instant::now();
+    let mut s = Session::open(&p, &cfg)?;
+    println!("CHAT-BENCH {} mode={} open_s={:.1}\n  {}", s.name, cfg.str("mode"), t0.elapsed().as_secs_f64(), s.how);
+    let tools = Tools { list: Vec::new(), artifacts: std::sync::Arc::new(cube_core::tools::artifact::Artifacts::new(p.artifacts())) };
+    let mut per_round = Vec::new();
+    for r in 1..=rounds {
+        let mut sp = Vec::new();
+        for pr in CHAT_BENCH {
+            let (_, st) = s.reply(&p, &[serde_json::json!({"role": "user", "content": pr})], "", &tools, &[], 0, &mut |_| {}, &|| false)?;
+            let x = st.split(" tok/s").next().and_then(|x| x.rsplit(' ').next()).and_then(|x| x.parse::<f64>().ok()).unwrap_or(0.0);
+            sp.push(x);
+            println!("round {r}: {x:6.3} tok/s  {:<60}  {}", pr, tiers_line(s.eng.as_ref()).unwrap_or_default());
+        }
+        let avg = sp.iter().sum::<f64>() / sp.len() as f64;
+        println!("round {r} average {avg:.3} tok/s");
+        per_round.push(avg);
+    }
+    println!("RESULT {}", per_round.iter().enumerate().map(|(i, x)| format!("round{}={x:.3}", i + 1)).collect::<Vec<_>>().join(" "));
     Ok(())
 }
