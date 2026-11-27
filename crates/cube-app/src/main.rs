@@ -543,7 +543,7 @@ impl eframe::App for App {
                 if self.busy {
                     ui.spinner();
                 }
-                ui.label(RichText::new(&self.status).color(DIM));
+                ui.add(egui::Label::new(RichText::new(&self.status).color(DIM)).truncate()).on_hover_text(&self.status);
             });
         });
         match self.tab {

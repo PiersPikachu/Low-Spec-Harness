@@ -183,8 +183,13 @@ pub fn messages(a: &mut App, ctx: &egui::Context) {
         });
     });
     egui::CentralPanel::default().show(ctx, |ui| {
+        // the panel's width before anything is laid out: a row that overflows widens the Ui's max rect, and sizing
+        // later rows from available_width() then pushed Send / Stop / Force stop off the screen
+        let panel_w = ui.available_width();
         ui.horizontal(|ui| {
-            ui.label(RichText::new(&a.model_label).size(15.0).strong());
+            ui.allocate_ui_with_layout(egui::vec2((panel_w - 200.0).max(100.0), 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                ui.add(egui::Label::new(RichText::new(&a.model_label).size(15.0).strong()).truncate()).on_hover_text(&a.model_label);
+            });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.add_enabled(!a.busy, egui::Button::new("Unload")).clicked() {
                     a.unload_model();
@@ -202,7 +207,7 @@ pub fn messages(a: &mut App, ctx: &egui::Context) {
         });
         ui.separator();
         ui.horizontal(|ui| {
-            let w = ui.available_width() - 110.0;
+            let w = (panel_w - 110.0).max(200.0);
             let r = ui.add_sized([w, 90.0], TextEdit::multiline(&mut a.input).hint_text("Message the model ... (start with /skill-name to insert a skill)"));
             let send = r.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter) && i.modifiers.command);
             ui.vertical(|ui| {
