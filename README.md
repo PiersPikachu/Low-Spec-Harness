@@ -7,6 +7,7 @@ streaming weights from the SSD, with a native window (egui) for chat, tools, art
 build.bat          build everything (cargo) + unit tests
 run.bat            start the window (target\release\cube-harness.exe)
 gpu_check.bat V    GPU engine vs CPU engine on a dense vault
+searxng_setup.bat  your own SearXNG search engine in WSL for the web plugin (start / stop: searxng_start.bat, searxng_stop.bat)
 web_check.bat      live test of the web plugin: search, read, loop protection, unsafe-site blocking
 bench_gptoss.bat V gpt-oss on real chat replies: output layer on the CPU vs on the GPU (both with RAM+VRAM expert tiers)
 target\release\cube.exe ...   command line (below)
@@ -63,7 +64,10 @@ unless you edit them). Turn the tool on in the Plugins tab; the skill is added a
 * `search` -> results S1.. from a configured API first (`searxng_url`, `tavily_api_key` or `brave_api_key` in
   `data/plugins/web_config.json`), else keyless pages: DuckDuckGo HTML, DuckDuckGo lite, Bing. An engine that
   answers with a bot check is left alone for 30 minutes. Keyless search is best effort (DuckDuckGo challenges
-  automated clients often); an API or your own SearXNG is the reliable route.
+  automated clients often); an API or your own SearXNG is the reliable route. `searxng_setup.bat` installs SearXNG
+  in a WSL distro named `searxng` (127.0.0.1:8888, this PC only, JSON output on) and sets `searxng_url` /
+  `searxng_wsl`; the plugin then starts it on demand. Your own SearXNG address is exempt from the address checks;
+  its results are not.
   `open` (target S#/L#/URL + a required `why`) -> page P# with its links L#, `more` -> another part of a page read,
   `status` -> what was read.
 * Safety: http/https only, no credentials in URLs, no private / local / reserved addresses (checked again after DNS

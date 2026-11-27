@@ -15,7 +15,7 @@
 * page text is fenced as data from the web, never instructions.
 
 Settings (optional): web_config.json next to this file, e.g.
-  {"searxng_url": "http://127.0.0.1:8888", "brave_api_key": "...", "max_searches": 5, "max_opens": 8,
+  {"searxng_url": "http://127.0.0.1:8888", "searxng_wsl": "searxng", "brave_api_key": "...", "max_searches": 5, "max_opens": 8,
    "max_per_site": 3, "max_more": 6, "part_chars": 2200, "allow_domains": [], "deny_domains": []}
 Self-test: python web.py --selftest
 """
@@ -67,7 +67,7 @@ UA = "cube-harness-web/1 (personal research assistant; Python urllib)"
 DETAILS = "--- details (shortened in older turns) ---"
 DEFAULTS = {"max_searches": 5, "max_opens": 8, "max_per_site": 3, "max_more": 6, "part_chars": 2200, "max_links": 20,
             "searxng_url": "", "brave_api_key": "", "tavily_api_key": "", "allow_domains": [], "deny_domains": [],
-            "timeout_s": 15, "user_agent": ""}
+            "timeout_s": 15, "user_agent": "", "searxng_wsl": ""}
 BLOCKLISTS = [
     ("malware (URLhaus)", ["https://malware-filter.gitlab.io/malware-filter/urlhaus-filter-domains.txt",
                            "https://curbengh.github.io/malware-filter/urlhaus-filter-domains.txt"]),
@@ -312,6 +312,38 @@ def check_dns(host):
     return None
 
 
+def _origin(u):
+    p = urllib.parse.urlsplit(u)
+    return (p.scheme.lower(), (p.hostname or "").lower(), p.port or (443 if p.scheme.lower() == "https" else 80))
+
+
+def _own_searxng(u, c):
+    return bool(c.get("searxng_url")) and _origin(u) == _origin(c["searxng_url"])
+
+
+def _start_searxng(c):
+    """Start the user's SearXNG in WSL (searxng_wsl: the distro name) when it is not running; wait for it."""
+    distro = c.get("searxng_wsl")
+    if not distro or os.name != "nt":
+        return False
+    import subprocess
+    flags = 0x00000008 | 0x00000200 | 0x08000000  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
+    try:
+        subprocess.Popen(["wsl.exe", "-d", distro, "-u", "searxng", "--", "/usr/local/searxng/run.sh"],
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
+    except OSError:
+        return False
+    o = _origin(c["searxng_url"])
+    for _ in range(40):
+        try:
+            socket.create_connection((o[1], o[2]), timeout=1).close()
+            time.sleep(1)  # the port opens a moment before the app answers
+            return True
+        except OSError:
+            time.sleep(0.5)
+    return False
+
+
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *a, **k):
         return None
@@ -324,11 +356,15 @@ def fetch(u, c, max_bytes=3 << 20, data=None, headers=None, internal=False):
     """(body bytes, final URL, content type, warnings). Every hop is checked; at most 5 redirects."""
     warns = []
     for hop in range(6):
-        why, w = check_url(u, c, model=not internal)
+        if internal and _own_searxng(u, c):
+            # the user's own SearXNG (usually 127.0.0.1:8888 in WSL): the address checks do not apply to it
+            why, w = None, []
+        else:
+            why, w = check_url(u, c, model=not internal)
         if why:
             raise PermissionError(("redirected to a blocked address: " if hop else "") + why)
         warns += [x for x in w if x not in warns]
-        dns = check_dns(host_of(u))
+        dns = None if (internal and _own_searxng(u, c)) else check_dns(host_of(u))
         if dns:
             raise PermissionError(dns)
         h = {"User-Agent": c.get("user_agent") or UA, "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5",
@@ -634,8 +670,17 @@ def search_providers(q, c):
                                         for r in json.loads(fetch("https://api.tavily.com/search", c, data=json.dumps({"query": q, "max_results": 8, "api_key": c["tavily_api_key"]}).encode(),
                                                                   headers={"Content-Type": "application/json", "Authorization": "Bearer " + c["tavily_api_key"]}, internal=True)[0]).get("results", [])]))
     if c.get("searxng_url"):
-        apis.append(("searxng", lambda: [(r["url"], r.get("title", ""), _strip(r.get("content", "")))
-                                         for r in json.loads(fetch(c["searxng_url"].rstrip("/") + "/search?" + urllib.parse.urlencode({"q": q, "format": "json"}), c, internal=True)[0]).get("results", [])]))
+        def searx():
+            u = c["searxng_url"].rstrip("/") + "/search?" + urllib.parse.urlencode({"q": q, "format": "json"})
+            try:
+                body = fetch(u, c, internal=True)[0]
+            except IOError as ex:
+                refused = "refused" in str(ex).lower() or "10061" in str(ex)
+                if not refused or not _start_searxng(c):
+                    raise
+                body = fetch(u, c, internal=True)[0]
+            return [(r["url"], r.get("title", ""), _strip(r.get("content", ""))) for r in json.loads(body).get("results", [])]
+        apis.append(("searxng", searx))
     for name, f in apis:
         try:
             res = f()
