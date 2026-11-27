@@ -96,7 +96,7 @@ TWO_LEVEL = {"co.uk", "org.uk", "ac.uk", "gov.uk", "com.au", "net.au", "org.au",
 def config():
     c = dict(DEFAULTS)
     try:
-        with open(os.path.join(HERE, "web_config.json"), encoding="utf-8") as f:
+        with open(os.environ.get("CUBE_WEB_CONFIG") or os.path.join(HERE, "web_config.json"), encoding="utf-8") as f:
             c.update(json.load(f))
     except (OSError, ValueError):
         pass
@@ -1001,6 +1001,9 @@ def selftest():
     r = run(action="search", query="Rust programming language")
     print(r[:1500])
     show("search returns results", "S1 " in r, r.splitlines()[0] if r else "")
+    if c.get("searxng_url"):
+        show("search went through your SearXNG (%s)" % c["searxng_url"], "(searxng)" in r.splitlines()[0],
+             "started it on demand" if c.get("searxng_wsl") else "")
     first = next((ln.split()[0] for ln in r.splitlines() if re.match(r"S\d+ ", ln) and "BLOCKED" not in ln), None)
     if first:
         print("\n--- live: open %s" % first)
