@@ -659,8 +659,10 @@ mod tests {
     #[test]
     fn timeout_and_stop() {
         let (a, base) = arts("to");
-        let k = super::Kind { name: "slow".into(), commands: vec![("run".into(), "sleep 30".into())], timeout_s: 1, ..Default::default() };
-        std::fs::write(a.types_dir.join("slow.json"), serde_json::to_string(&json!({"name": "slow", "main": "x.txt", "commands": [["run", "sleep 30"]], "timeout_s": 5})).unwrap()).unwrap();
+        // cmd has no 'sleep'; ping waits ~1 s per echo request
+        let slow = if cfg!(windows) { "ping -n 31 127.0.0.1 >nul" } else { "sleep 30" };
+        let k = super::Kind { name: "slow".into(), commands: vec![("run".into(), slow.into())], timeout_s: 1, ..Default::default() };
+        std::fs::write(a.types_dir.join("slow.json"), serde_json::to_string(&json!({"name": "slow", "main": "x.txt", "commands": [["run", slow]], "timeout_s": 5})).unwrap()).unwrap();
         a.act(&json!({"action": "create", "name": "s", "type": "slow", "content": "x"}));
         let d = a.root.join("s");
         let t0 = std::time::Instant::now();
@@ -682,6 +684,9 @@ mod tests {
         let _ = std::fs::remove_dir_all(base);
     }
 
+    /// the sandbox's copy-in / run / copy-back with plain bash standing in for WSL (Unix only: on Windows 'bash' is
+    /// WSL's launcher; the real sandbox is checked by sandbox_setup.bat)
+    #[cfg(unix)]
     #[test]
     fn sandbox_copy_in_run_copy_back() {
         let (a, base) = arts("sb");
@@ -719,7 +724,9 @@ mod tests {
             let r = a.act(&json!({"action": "run", "name": n, "command": cmd}));
             assert!(r.contains("exit 0"), "{}: {r}", k.name);
             if cmd == "run" {
-                assert!(r.contains(&format!("hello from {n}")), "{}: {r}", k.name);
+                // every starter says "hello from <artifact>"; the CUDA one says it from each GPU thread
+                let want = if k.name == "cuda" { "hello from thread 3".to_string() } else { format!("hello from {n}") };
+                assert!(r.contains(&want), "{}: {r}", k.name);
             }
             ran.push(format!("{}:{cmd}", k.name));
         }
