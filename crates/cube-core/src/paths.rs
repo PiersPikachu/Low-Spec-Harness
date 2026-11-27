@@ -11,6 +11,22 @@
 use serde_json::{json, Map, Value as J};
 use std::path::{Path, PathBuf};
 
+/// `canonicalize` without Windows' `\\?\` verbatim prefix (which would leak into settings files and messages).
+pub fn canon(p: &Path) -> PathBuf {
+    strip_verbatim(&p.canonicalize().unwrap_or_else(|_| p.to_path_buf()))
+}
+
+pub fn strip_verbatim(p: &Path) -> PathBuf {
+    let s = p.to_string_lossy();
+    if let Some(r) = s.strip_prefix(r"\\?\UNC\") {
+        PathBuf::from(format!(r"\\{r}"))
+    } else if let Some(r) = s.strip_prefix(r"\\?\") {
+        PathBuf::from(r)
+    } else {
+        p.to_path_buf()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Paths {
     pub root: PathBuf,
@@ -35,7 +51,7 @@ impl Paths {
         Paths::at(exe)
     }
     pub fn at(root: PathBuf) -> Paths {
-        let root = root.canonicalize().unwrap_or(root);
+        let root = canon(&root);
         Paths { data: root.join("data"), root }
     }
     pub fn config(&self) -> PathBuf {
@@ -76,19 +92,18 @@ impl Paths {
 
     /// store a path relative to ROOT when it lives inside the harness folder
     pub fn rel(&self, p: &Path) -> String {
-        let p = p.canonicalize().unwrap_or_else(|_| p.to_path_buf());
+        let p = canon(p);
         match p.strip_prefix(&self.root) {
             Ok(r) => r.to_string_lossy().into_owned(),
             Err(_) => p.to_string_lossy().into_owned(),
         }
     }
     pub fn absolute(&self, p: &str) -> PathBuf {
-        let q = PathBuf::from(p);
+        let q = strip_verbatim(Path::new(p));
         if q.is_absolute() {
             q
         } else {
-            let j = self.root.join(q);
-            j.canonicalize().unwrap_or(j)
+            canon(&self.root.join(q))
         }
     }
 }
@@ -271,4 +286,16 @@ pub fn resolve_vault(p: &Paths, c: &Config, name_or_path: &str) -> anyhow::Resul
     }
     let nm = Path::new(name_or_path).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     find_vaults(p, c).into_iter().find(|(n, _)| *n == nm).map(|x| x.1).ok_or_else(|| anyhow::anyhow!("vault '{name_or_path}' not found in any model folder"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::strip_verbatim;
+    use std::path::Path;
+    #[test]
+    fn verbatim() {
+        assert_eq!(strip_verbatim(Path::new(r"\\?\D:\models")), Path::new(r"D:\models"));
+        assert_eq!(strip_verbatim(Path::new(r"\\?\UNC\srv\share\x")), Path::new(r"\\srv\share\x"));
+        assert_eq!(strip_verbatim(Path::new("/home/x")), Path::new("/home/x"));
+    }
 }

@@ -9,14 +9,14 @@ use std::time::Instant;
 
 /// Free bytes on the volume holding `p`.
 pub fn free_bytes(p: &Path) -> u64 {
-    let p = p.canonicalize().unwrap_or_else(|_| p.to_path_buf());
+    let p = crate::paths::canon(p);
     let disks = sysinfo::Disks::new_with_refreshed_list();
     disks.list().iter().filter(|d| p.starts_with(d.mount_point())).max_by_key(|d| d.mount_point().as_os_str().len()).map_or(0, |d| d.available_space())
 }
 
 /// Drive letter on Windows ("C:"), mount point elsewhere.
 pub fn drive_of(p: &Path) -> String {
-    let p = p.canonicalize().unwrap_or_else(|_| p.to_path_buf());
+    let p = crate::paths::canon(p);
     let s = p.to_string_lossy().replace("\\\\?\\", "");
     if s.len() >= 2 && s.as_bytes()[1] == b':' {
         return s[..2].to_uppercase();

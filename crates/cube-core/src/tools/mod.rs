@@ -74,7 +74,7 @@ impl Tool for ReadFile {
         let ws = &self.0;
         let _ = std::fs::create_dir_all(ws);
         let path = a.get("path").and_then(|x| x.as_str()).unwrap_or(".");
-        let ws_c = ws.canonicalize().unwrap_or(ws.clone());
+        let ws_c = crate::paths::canon(ws);
         let mut p = ws_c.clone();
         for part in path.replace('\\', "/").split('/') {
             match part {
@@ -85,7 +85,7 @@ impl Tool for ReadFile {
                 x => p.push(x),
             }
         }
-        let p = p.canonicalize().unwrap_or(p);
+        let p = crate::paths::canon(&p);
         if !p.starts_with(&ws_c) {
             return "error: outside the workspace folder".into();
         }

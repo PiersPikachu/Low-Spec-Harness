@@ -324,7 +324,7 @@ fn chat(a: &[String]) -> Result<()> {
     p.ensure_dirs();
     let mut cfg = paths::Config::load(&p);
     let vault = a.get(2).context(USAGE)?;
-    cfg.set("vault", serde_json::json!(std::fs::canonicalize(vault).map(|x| x.to_string_lossy().into_owned()).unwrap_or(vault.clone())));
+    cfg.set("vault", serde_json::json!(cube_core::paths::canon(std::path::Path::new(vault)).to_string_lossy().into_owned()));
     let mut prompt: Option<String> = None;
     let mut i = 3;
     while i < a.len() {
