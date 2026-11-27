@@ -11,6 +11,42 @@ Double-click **cube-harness.bat**. It finds Python, adapts the harness to the fo
 packages are missing), then opens the window. The folder can be moved or copied anywhere; see *Moving the harness* below.
 
 Requirements: Windows, Python 3.10+ with tkinter, ~16 GB RAM recommended, an NVMe SSD for the models you run. A CUDA GPU is optional.
+**gcc is not needed to run the harness** - only to rebuild the CPU engine (see *gcc: when you need it* below).
+
+## gcc: when you need it
+
+**gcc** is the GNU C compiler (on Windows: **MinGW-w64**). The harness uses it for one thing: compiling the CPU engine
+`engine\nvme_engine_u.exe` from its C source, `engine\nvme_engine_u.c`.
+
+- **You do not need it** if the engine that ships in `engine\` runs on your PC. It is prebuilt, so most people never install gcc.
+- **You need it** when the shipped engine does not run on your CPU. It is compiled with `-march=native`, i.e. for the CPU it was
+  built on (a Zen 3 Ryzen, using AVX2), so an older or different CPU can refuse it. `cube-harness.bat` test-runs the engine at
+  every start (`app\launch_check.py`); if it fails and gcc is installed, it rebuilds the engine automatically. Without gcc it
+  tells you so in `data\logs\launch.txt`.
+- **You also need it** if you change the engine source and want to rebuild it yourself: `engine\build.bat`.
+
+Install it (any one of these), then open a new terminal and check that `gcc --version` prints a version:
+
+- winget: `winget install -e --id BrechtSanders.WinLibs.POSIX.UCRT` (the WinLibs build of GCC + MinGW-w64)
+- MSYS2 (https://www.msys2.org): `pacman -S mingw-w64-ucrt-x86_64-gcc`, then add `C:\msys64\ucrt64\bin` to PATH
+
+The build line, in `engine\build.bat`:
+
+```
+gcc -O3 -march=native -ffp-contract=off -fopenmp -static nvme_engine_u.c -o nvme_engine_u.exe -lm -lpsapi
+```
+
+| Flag | Why |
+|---|---|
+| `-O3` | full optimisation |
+| `-march=native` | use every instruction this CPU has (AVX2 kernels) - the reason a copy built elsewhere may not run here |
+| `-ffp-contract=off` | no fused multiply-add: results stay bit-exact across builds (the output must match the original model) |
+| `-fopenmp` | multithreading |
+| `-static` | no MinGW DLLs needed next to the .exe |
+| `-lm -lpsapi` | maths library; Windows process-memory API |
+
+The GPU engine (`engine\gpu\gpu_engine.exe`) is a separate build with CUDA's nvcc plus Visual Studio Build Tools - gcc is
+not involved there.
 
 ## Models
 
@@ -51,11 +87,12 @@ cube-harness/
 
 Everything inside the folder is stored relative to it. When `cube-harness.bat` starts the harness from a new location it re-bases
 model folders that pointed inside the old location. On a different computer it sets aside the old hardware measurements (the
-planner re-measures), test-runs the engine and rebuilds it if it does not run on this CPU (needs gcc), and reports model folders
+planner re-measures), test-runs the engine and rebuilds it if it does not run on this CPU (needs gcc - see
+*gcc: when you need it*), and reports model folders
 that are not reachable (for example an unplugged USB drive). The result is written to `data/logs/launch.txt`.
 
 ## Rebuilding the engine
 
 `engine\build.bat` regenerates `nvme_engine_u.c` from the patch chain (`make_engine_u.py` + `make_engine_*.py`), compiles it with
-gcc and builds the GPU engine with nvcc (`gpu\nvbuild.bat`, needs Visual Studio Build Tools). `engine\gpu\build_gpu_experts.bat`
+gcc (MinGW-w64, see *gcc: when you need it*) and builds the GPU engine with nvcc (`gpu\nvbuild.bat`, needs Visual Studio Build Tools). `engine\gpu\build_gpu_experts.bat`
 builds `gpu_experts.dll`.

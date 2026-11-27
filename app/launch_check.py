@@ -69,7 +69,8 @@ def main():
             say("the engine does not run on this machine (it may have been built for another CPU)")
             if shutil.which("gcc"):
                 say("  rebuilding it with gcc ..."); subprocess.run(["cmd", "/c", str(hp.ENGINE_DIR / "build.bat")], cwd=str(hp.ENGINE_DIR))
-            else: say("  install MinGW-w64 gcc and run engine\\build.bat, or copy an engine built for this CPU"); code = 1
+            else: say("  gcc (the C compiler) is needed to rebuild it for this CPU: winget install -e --id BrechtSanders.WinLibs.POSIX.UCRT,"
+                    " then run engine\\build.bat - or copy an engine built for this CPU. See README.md, 'gcc: when you need it'"); code = 1
     # 5 model folders reachable?
     for o in hp.model_dirs(cfg):
         if not o["path"].exists(): say(f"model folder not reachable now (drive unplugged?): {o['path']}")
