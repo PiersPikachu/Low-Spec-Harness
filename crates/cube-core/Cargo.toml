@@ -23,3 +23,5 @@ sha1_smol = "1"
 sysinfo = { version = "0.33", default-features = false, features = ["system", "disk"] }
 ureq = { version = "2", default-features = false, features = ["tls", "native-certs", "json", "proxy-from-env"] }
 cube-pack = { path = "../cube-pack" }
+tar = { version = "0.4", default-features = false }
+base64 = "0.22"

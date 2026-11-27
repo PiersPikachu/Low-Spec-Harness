@@ -92,6 +92,8 @@ pub struct App {
     pub jtx: Sender<Job>,
     pub jrx: Receiver<Job>,
     pub t: tabs::State,
+    /// a run the model asked for, waiting for the user's answer ("ask" setting)
+    pub approval: Arc<Mutex<Option<(String, Sender<bool>)>>>,
 }
 
 impl App {
@@ -127,9 +129,22 @@ impl App {
             jtx,
             jrx,
             t: tabs::State::default(),
+            approval: Arc::new(Mutex::new(None)),
         };
+        a.configure_tools();
         a.refresh_convs(true);
         tabs::init(&mut a);
+        // smoke tests: open an artifact (and run one of its commands) at startup
+        if let Ok(n) = std::env::var("CUBE_HARNESS_SHOW_ARTIFACT") {
+            a.tab = Tab::Artifacts;
+            tabs::artifacts_refresh(&mut a);
+            tabs::art_show(&mut a, &n, false);
+            if let Ok(c) = std::env::var("CUBE_HARNESS_RUN") {
+                let arts = a.tools().artifacts.clone();
+                let pref = a.cfg.bool("artifact_sandbox");
+                a.t.art_job = Some((n.clone(), c.clone(), std::thread::spawn(move || arts.run_command(&n, &c, pref))));
+            }
+        }
         // smoke tests: send one message at startup
         if let Ok(m) = std::env::var("CUBE_HARNESS_AUTOSEND") {
             a.input = m;
@@ -144,6 +159,34 @@ impl App {
 
     pub fn reload_tools(&mut self) {
         *self.tools.lock().unwrap() = Arc::new(Tools::load(&self.p, &self.cfg.str("python")));
+        self.configure_tools();
+    }
+
+    /// The settings for running artifact code, and how the model's runs get approved.
+    pub fn configure_tools(&self) {
+        let t = self.tools();
+        let model = match self.cfg.str("artifact_run_by_model").as_str() {
+            m @ ("ask" | "auto") => m.to_string(),
+            _ => "off".to_string(),
+        };
+        *t.artifacts.policy.lock().unwrap() = cube_core::tools::artifact::RunPolicy { model, sandbox: self.cfg.bool("artifact_sandbox") };
+        let pend = self.approval.clone();
+        *t.artifacts.approver.lock().unwrap() = Some(Arc::new(move |q: &str| {
+            let (tx, rx) = channel();
+            *pend.lock().unwrap() = Some((q.to_string(), tx));
+            // unanswered for 10 minutes counts as no
+            let ok = rx.recv_timeout(std::time::Duration::from_secs(600)).unwrap_or(false);
+            *pend.lock().unwrap() = None;
+            ok
+        }));
+    }
+
+    /// Stop / Force stop: also stops artifact code that is running and declines a pending approval.
+    pub fn stop_runs(&self) {
+        self.tools().artifacts.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        if let Some((_, tx)) = self.approval.lock().unwrap().take() {
+            let _ = tx.send(false);
+        }
     }
 
     pub fn save_cfg(&mut self) {
@@ -495,6 +538,9 @@ fn cur_round(l: &mut Live) -> &mut Round {
 
 /// First run: the default skill that teaches the tool-call format.
 fn seed_data(p: &Paths) {
+    if let Some(d) = p.artifacts().parent() {
+        cube_core::runners::seed(&d.join("artifact_types"));
+    }
     let f = p.skills().join("tool-calls.md");
     if !f.exists() && std::fs::read_dir(p.skills()).map(|mut r| r.next().is_none()).unwrap_or(true) {
         let _ = std::fs::write(f, include_str!("../assets/tool-calls.md"));
@@ -577,7 +623,8 @@ impl eframe::App for App {
             Tab::Skills => tabs::skills(self, ctx),
         }
         tabs::dialogs(self, ctx);
-        if self.busy || self.t.hub_busy || self.t.st_busy {
+        tabs::approval_dialog(self, ctx);
+        if self.busy || self.t.hub_busy || self.t.st_busy || self.t.art_job.is_some() || self.approval.lock().unwrap().is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(250));
         }
     }

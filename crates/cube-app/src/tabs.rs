@@ -80,6 +80,10 @@ pub struct State {
     pub art_live: bool,
     /// (artifact, file) the model was last seen writing; selected when its call completes
     pub art_live_target: Option<(String, Option<String>)>,
+    /// a run started from the Artifacts tab: (artifact, command, thread)
+    pub art_job: Option<(String, String, std::thread::JoinHandle<cube_core::runners::RunResult>)>,
+    /// toolchain checks done in the background: (type, sandbox) -> Ok(version) / Err(what to do)
+    pub art_avail: Arc<std::sync::Mutex<HashMap<(String, bool), Result<String, String>>>>,
     // models
     pub hub_q: String,
     pub hub_fit: bool,
@@ -221,11 +225,13 @@ pub fn messages(a: &mut App, ctx: &egui::Context) {
                     a.send();
                 }
                 if ui.add_enabled(a.busy, egui::Button::new("Stop").min_size([96.0, 24.0].into())).clicked() {
+                    a.stop_runs();
                     a.worker.request_stop();
                     a.status = "stopping after the current step ...".into();
                 }
                 if ui.add_enabled(a.busy, egui::Button::new("Force stop").min_size([96.0, 24.0].into())).clicked() {
                     a.forced = true;
+                    a.stop_runs();
                     a.worker.force_stop();
                     a.status = "force stop: the engine aborts at the next token".into();
                 }
@@ -394,7 +400,7 @@ fn art_autosave(a: &mut App) {
     };
 }
 
-fn art_show(a: &mut App, name: &str, keep_file: bool) {
+pub fn art_show(a: &mut App, name: &str, keep_file: bool) {
     let arts = a.tools().artifacts.clone();
     let d = arts.root.join(name);
     let m = arts.meta(&d);
@@ -484,7 +490,8 @@ pub fn artifacts(a: &mut App, ctx: &egui::Context) {
     egui::SidePanel::left("arts").resizable(true).default_width(270.0).show(ctx, |ui| {
         ui.add_space(6.0);
         if ui.add_sized([ui.available_width(), 28.0], egui::Button::new(RichText::new("+  New artifact").color(ACCENT))).clicked() {
-            a.t.prompt = Some(Prompt { title: "New artifact".into(), fields: vec![("Name (e.g. trip-notes)".into(), String::new()), ("Type: note, page, site, code or data".into(), "note".into())], kind: PromptKind::NewArtifact });
+            let kinds: Vec<String> = a.tools().artifacts.kinds().into_iter().map(|k| k.name).collect();
+            a.t.prompt = Some(Prompt { title: "New artifact".into(), fields: vec![("Name (e.g. trip-notes)".into(), String::new()), (format!("Type: {}", kinds.join(", ")), "note".into())], kind: PromptKind::NewArtifact });
         }
         ui.horizontal(|ui| {
             if ui.button("Refresh").clicked() {
@@ -557,6 +564,8 @@ pub fn artifacts(a: &mut App, ctx: &egui::Context) {
                 ui.checkbox(&mut a.t.art_follow, "Follow the model live");
             });
         });
+        art_run_row(a, ui);
+        art_output(a, ui);
         egui::SidePanel::left("artfl").resizable(true).default_width(240.0).show_inside(ui, |ui| {
             ui.label(RichText::new("Files").color(DIM));
             let mut pick = None;
@@ -598,6 +607,149 @@ pub fn artifacts(a: &mut App, ctx: &egui::Context) {
             });
         });
     });
+}
+
+/// The selected artifact's type, and whether its code runs in the sandbox.
+fn art_kind(a: &App) -> Option<(cube_core::runners::Kind, bool)> {
+    let n = a.t.art_name.as_ref()?;
+    let arts = a.tools().artifacts.clone();
+    let m = arts.meta(&arts.root.join(n));
+    let k = arts.kind(m["type"].as_str().unwrap_or("code"))?;
+    let inside = k.in_sandbox(a.cfg.bool("artifact_sandbox"));
+    Some((k, inside))
+}
+
+/// Run / Build / Test ... for the selected artifact, where it runs, and whether its tools are installed.
+fn art_run_row(a: &mut App, ui: &mut egui::Ui) {
+    // a run started here has finished: show its result, pick up the files it made
+    if a.t.art_job.as_ref().map_or(false, |j| j.2.is_finished()) {
+        let (_, _, h) = a.t.art_job.take().unwrap();
+        if let Ok(r) = h.join() {
+            a.status = r.status();
+        }
+        artifacts_refresh(a);
+    }
+    let Some((k, inside)) = art_kind(a) else { return };
+    let Some(name) = a.t.art_name.clone() else { return };
+    let arts = a.tools().artifacts.clone();
+    ui.horizontal_wrapped(|ui| {
+        ui.label(RichText::new(format!("{}:", k.title)).color(DIM));
+        if !k.runnable() {
+            ui.label(RichText::new("files only - nothing to run").color(DIM).small());
+            return;
+        }
+        let key = (k.name.clone(), inside);
+        let avail = a.t.art_avail.lock().unwrap().get(&key).cloned();
+        if avail.is_none() {
+            // checking runs a program (up to a few seconds): never on the window's thread
+            let (m, k2) = (a.t.art_avail.clone(), k.clone());
+            m.lock().unwrap().insert(key.clone(), Err("checking the tools ...".into()));
+            std::thread::spawn(move || {
+                let r = cube_core::runners::available(&k2, inside);
+                m.lock().unwrap().insert((k2.name.clone(), inside), r);
+            });
+        }
+        let ready = matches!(avail, Some(Ok(_)));
+        let running = a.t.art_job.is_some() || arts.running.lock().unwrap().is_some();
+        for c in k.command_names(inside) {
+            let label = format!("{}{}", c[..1].to_uppercase(), &c[1..]);
+            if ui.add_enabled(ready && !running, egui::Button::new(RichText::new(label).color(ACCENT))).clicked() {
+                if a.t.art_typed.is_some() {
+                    art_autosave(a); // run what is on screen
+                }
+                let (arts2, n2, c2, pref) = (arts.clone(), name.clone(), c.clone(), a.cfg.bool("artifact_sandbox"));
+                a.status = format!("{name}: running '{c}' {} ...", if inside { "in the sandbox" } else { "on this PC" });
+                a.t.art_job = Some((name.clone(), c.clone(), std::thread::spawn(move || arts2.run_command(&n2, &c2, pref))));
+            }
+        }
+        if running && ui.button("Stop").clicked() {
+            arts.stop.store(true, Ordering::Relaxed);
+        }
+        if !k.open.is_empty() {
+            let f = arts.root.join(&name).join(&k.open);
+            if ui.add_enabled(f.is_file(), egui::Button::new(format!("Open {}", k.open))).on_disabled_hover_text("build it first").clicked() {
+                open_path(&f);
+            }
+        }
+        let mut sb = a.cfg.bool("artifact_sandbox");
+        let fixed = k.linux_only || k.windows_only;
+        let r = ui.add_enabled(!fixed, egui::Checkbox::new(&mut sb, "in the sandbox"));
+        let r = r.on_hover_text(if k.linux_only {
+            "this type always runs in the Linux sandbox"
+        } else if k.windows_only {
+            "this type runs on this PC only"
+        } else {
+            "run in the WSL sandbox (cube-sandbox): files are copied in and results copied back; the code cannot touch anything else on Windows"
+        });
+        if r.changed() {
+            a.cfg.set("artifact_sandbox", json!(sb));
+            a.save_cfg();
+            a.configure_tools();
+        }
+        match &avail {
+            Some(Ok(v)) => ui.label(RichText::new(format!("ready: {v}")).color(DIM).small()),
+            Some(Err(e)) => ui.label(RichText::new(e).color(if e.starts_with("checking") { DIM } else { BAD }).small()),
+            None => ui.label(RichText::new("checking the tools ...").color(DIM).small()),
+        };
+    });
+}
+
+/// Output of the run in progress, or of the selected artifact's last run (by you or the model).
+fn art_output(a: &mut App, ui: &mut egui::Ui) {
+    let Some(name) = a.t.art_name.clone() else { return };
+    let arts = a.tools().artifacts.clone();
+    let running = arts.running.lock().unwrap().clone();
+    let last = arts.last_run.lock().unwrap().get(&name).cloned();
+    if running.is_none() && last.is_none() {
+        return;
+    }
+    egui::TopBottomPanel::bottom("artout").resizable(true).default_height(170.0).show_inside(ui, |ui| {
+        let (head, text) = match (&running, &last) {
+            (Some(r), _) => (format!("running: {r} ..."), arts.live_out.lock().unwrap().clone()),
+            (None, Some(l)) => (l.status(), {
+                let mut t = l.output.clone();
+                if !l.error.is_empty() {
+                    t = format!("{}\n{t}", l.error);
+                }
+                if !l.changed.is_empty() {
+                    t += &format!("\n[files created or changed: {}]", l.changed.join(", "));
+                }
+                t
+            }),
+            _ => (String::new(), String::new()),
+        };
+        ui.label(RichText::new(head).color(if last.as_ref().map_or(true, |l| l.ok()) || running.is_some() { DIM } else { BAD }).small());
+        ScrollArea::vertical().id_salt("artoutsc").stick_to_bottom(true).auto_shrink([false; 2]).show(ui, |ui| {
+            ui.add(egui::Label::new(RichText::new(if text.is_empty() { "(no output yet)" } else { &text }).monospace().small()).wrap());
+        });
+    });
+}
+
+/// The model asked to run code ("ask" setting): Allow or Deny.
+pub fn approval_dialog(a: &mut App, ctx: &egui::Context) {
+    let q = a.approval.lock().unwrap().as_ref().map(|x| x.0.clone());
+    let Some(q) = q else { return };
+    let mut answer = None;
+    egui::Window::new("Run code?").collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+        ui.set_max_width(520.0);
+        ui.label(RichText::new(&q).monospace());
+        ui.add_space(6.0);
+        ui.label(RichText::new("Settings > 'Model may run artifact code' decides whether you are asked.").color(DIM).small());
+        ui.horizontal(|ui| {
+            if ui.button(RichText::new("Allow").color(ACCENT)).clicked() {
+                answer = Some(true);
+            }
+            if ui.button("Deny").clicked() {
+                answer = Some(false);
+            }
+        });
+    });
+    if let Some(ok) = answer {
+        if let Some((_, tx)) = a.approval.lock().unwrap().take() {
+            let _ = tx.send(ok);
+        }
+        a.status = if ok { "allowed: the model's run is starting".into() } else { "denied the model's run".into() };
+    }
 }
 
 fn zip_artifact(arts: &cube_core::tools::artifact::Artifacts, n: &str, dst: &std::path::Path) -> anyhow::Result<()> {
@@ -1183,7 +1335,7 @@ pub fn folders(a: &mut App, ctx: &egui::Context) {
 }
 
 // ====================================================================== Config
-const FIELDS: [(&str, &str, &str); 17] = [
+const FIELDS: [(&str, &str, &str); 19] = [
     ("vault", "Model vault", "vault"),
     ("mode", "Execution mode (auto, cpu, gpu, split)", "mode"),
     ("gpu_layers", "GPU layers in split mode (0 = as many as fit)", "int"),
@@ -1201,6 +1353,8 @@ const FIELDS: [(&str, &str, &str); 17] = [
     ("resident_mb", "RAM for pinned weights, MB (0 = automatic)", "int"),
     ("threads", "Compute threads (0 = all but 2)", "int"),
     ("python", "Python for .py plugins (blank = find it)", "str"),
+    ("artifact_run_by_model", "Model may run artifact code (off, ask, auto)", "runmode"),
+    ("artifact_sandbox", "Run artifact code in the WSL sandbox (cube-sandbox)", "bool"),
 ];
 
 pub fn config_fill(a: &mut App) {
@@ -1285,6 +1439,17 @@ pub fn config(a: &mut App, ctx: &egui::Context) {
                             egui::ComboBox::from_id_salt("cfgmode").width(120.0).selected_text(v.clone()).show_ui(ui, |ui| {
                                 for n in ["auto", "cpu", "gpu", "split"] {
                                     ui.selectable_value(v, n.to_string(), n);
+                                }
+                            });
+                        }
+                        "runmode" => {
+                            let v = a.t.cf.entry(k.into()).or_default();
+                            if !["off", "ask", "auto"].contains(&v.as_str()) {
+                                *v = "off".into();
+                            }
+                            egui::ComboBox::from_id_salt("cfgrun").width(120.0).selected_text(v.clone()).show_ui(ui, |ui| {
+                                for (n, h) in [("off", "only you, from the Artifacts tab"), ("ask", "the model asks you each time"), ("auto", "the model runs code by itself")] {
+                                    ui.selectable_value(v, n.to_string(), n).on_hover_text(h);
                                 }
                             });
                         }

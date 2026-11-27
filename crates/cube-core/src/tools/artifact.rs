@@ -6,29 +6,50 @@
 use super::Tool;
 use serde_json::{json, Value as J};
 use std::collections::HashMap;
+use crate::runners::{self, Kind, RunResult};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, Mutex};
 
 pub const NAME: &str = "artifact";
-pub const TYPES: [(&str, &str); 5] = [("note", "notes.md"), ("page", "index.html"), ("site", "index.html"), ("code", "README.md"), ("data", "data.csv")];
 pub const MAX_WRITE: usize = 2_000_000;
 pub const MAX_FILES: usize = 500;
-pub const DESCRIPTION: &str = "Call this tool by the name 'artifact' and put the operation in the 'action' argument, e.g. artifact(action='create', name='my-notes', type='note'). Create and maintain persistent artifacts saved in the harness (kept across chats): notes, a single HTML page, a multi-file website, a codebase, or data files. Use 'list' to see what exists, 'read' before editing, and 'edit' for small changes (old text must match exactly once). Actions: list | create | files | read | write | edit | append | delete_file | history | revert. Types for create: note (notes.md), page (one self-contained index.html), site (index.html + other files), code (any files), data (csv/json). Paths are relative to the artifact, e.g. 'index.html' or 'src/app.js'. Every change can be undone with revert.";
+pub const DESCRIPTION: &str = "Call this tool by the name 'artifact' and put the operation in the 'action' argument, e.g. artifact(action='create', name='my-notes', type='note'). Create and maintain persistent artifacts saved in the harness (kept across chats): notes, pages, websites, programs in many languages, documents, diagrams, data. Use 'list' to see what exists, 'read' before editing, and 'edit' for small changes (old text must match exactly once). Actions: list | types | create | files | read | write | edit | append | delete_file | history | revert | run. 'types' lists every type with its main file, its commands and whether its tools are installed. 'run' runs one of the artifact's commands (run, build, test, ...) and returns the output and the files it made; whether you may run code is the user's setting. Paths are relative to the artifact, e.g. 'index.html' or 'src/app.js'. Every change can be undone with revert.";
 
-pub fn parameters() -> J {
+pub fn parameters(kinds: &[Kind]) -> J {
+    let names: Vec<&str> = kinds.iter().map(|k| k.name.as_str()).collect();
     json!({"type": "object", "properties": {
-        "action": {"type": "string", "enum": ["list", "create", "files", "read", "write", "edit", "append", "delete_file", "history", "revert"], "description": "what to do"},
-        "name": {"type": "string", "description": "artifact name (lowercase words joined by '-', e.g. 'trip-notes'); not needed for list"},
-        "type": {"type": "string", "enum": ["note", "page", "site", "code", "data"], "description": "create only: kind of artifact"},
+        "action": {"type": "string", "enum": ["list", "types", "create", "files", "read", "write", "edit", "append", "delete_file", "history", "revert", "run"], "description": "what to do"},
+        "name": {"type": "string", "description": "artifact name (lowercase words joined by '-', e.g. 'trip-notes'); not needed for list / types"},
+        "type": {"type": "string", "enum": names, "description": "create only: kind of artifact (see action 'types')"},
         "title": {"type": "string", "description": "create only: human-readable title"},
         "path": {"type": "string", "description": "file inside the artifact; defaults to its main file"},
         "content": {"type": "string", "description": "create / write / append: the text to put in the file"},
         "old": {"type": "string", "description": "edit: exact existing text to replace (must occur exactly once)"},
         "new": {"type": "string", "description": "edit: replacement text"},
         "version": {"type": "integer", "description": "revert: change number from history (restores the file as it was before that change)"},
-        "start_line": {"type": "integer", "description": "read: first line to show (1-based), for long files"}
+        "start_line": {"type": "integer", "description": "read: first line to show (1-based), for long files"},
+        "command": {"type": "string", "description": "run: which command of the artifact's type (run, build, test, ...; default run)"}
     }, "required": ["action"]})
 }
+
+/// Whether the model may run artifact code, and where code runs.
+#[derive(Clone, Debug)]
+pub struct RunPolicy {
+    /// "off" (only the user, from the Artifacts tab), "ask" (the user approves each run), "auto"
+    pub model: String,
+    /// run in the WSL sandbox instead of on this PC (types that are Linux-only always run there)
+    pub sandbox: bool,
+}
+
+impl Default for RunPolicy {
+    fn default() -> Self {
+        RunPolicy { model: "off".into(), sandbox: false }
+    }
+}
+
+/// Asks the user to allow one run (blocks until answered); false = denied.
+pub type Approver = Arc<dyn Fn(&str) -> bool + Send + Sync>;
 
 pub fn now() -> String {
     chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string()
@@ -50,8 +71,9 @@ pub fn slug(s: &str) -> String {
     t
 }
 
-fn main_for(t: &str) -> &'static str {
-    TYPES.iter().find(|(k, _)| *k == t).map(|x| x.1).unwrap_or("README.md")
+/// {name} {title} {crate} in starter files
+fn starter_text(t: &str, name: &str, title: &str) -> String {
+    t.replace("{name}", name).replace("{title}", title).replace("{crate}", &name.replace('-', "_"))
 }
 
 struct LiveState {
@@ -66,6 +88,17 @@ struct LiveState {
 pub struct Artifacts {
     pub root: PathBuf,
     live: Mutex<HashMap<(String, String, String), LiveState>>,
+    /// data/artifact_types: one JSON file per type (see runners.rs)
+    pub types_dir: PathBuf,
+    pub policy: Mutex<RunPolicy>,
+    pub approver: Mutex<Option<Approver>>,
+    /// stops the run in progress (Stop in the Artifacts tab, Force stop in Messages)
+    pub stop: Arc<AtomicBool>,
+    /// output of the run in progress, as it comes (the Artifacts tab shows it)
+    pub live_out: Arc<Mutex<String>>,
+    /// last run per artifact (by the model or the user)
+    pub last_run: Mutex<HashMap<String, RunResult>>,
+    pub running: Mutex<Option<String>>,
 }
 
 type R<T> = Result<T, String>;
@@ -82,7 +115,63 @@ fn write_text(p: &Path, s: &str) -> R<()> {
 
 impl Artifacts {
     pub fn new(root: PathBuf) -> Artifacts {
-        Artifacts { root, live: Mutex::new(HashMap::new()) }
+        let types_dir = root.parent().map(|p| p.join("artifact_types")).unwrap_or_else(|| root.join("../artifact_types"));
+        Artifacts {
+            root,
+            live: Mutex::new(HashMap::new()),
+            types_dir,
+            policy: Mutex::new(RunPolicy::default()),
+            approver: Mutex::new(None),
+            stop: Arc::new(AtomicBool::new(false)),
+            live_out: Arc::new(Mutex::new(String::new())),
+            last_run: Mutex::new(HashMap::new()),
+            running: Mutex::new(None),
+        }
+    }
+
+    pub fn kinds(&self) -> Vec<Kind> {
+        runners::load(&self.types_dir)
+    }
+
+    pub fn kind(&self, name: &str) -> Option<Kind> {
+        self.kinds().into_iter().find(|k| k.name == name)
+    }
+
+    fn main_for(&self, t: &str) -> String {
+        self.kind(t).map(|k| k.main).unwrap_or_else(|| "README.md".into())
+    }
+
+    /// Run `cmd` for artifact `name` (the user's Run button, or the model after the policy check).
+    pub fn run_command(&self, name: &str, cmd: &str, sandbox_pref: bool) -> RunResult {
+        let mut r = RunResult { name: name.into(), command: cmd.into(), ..Default::default() };
+        let d = match self.dir(name, true) {
+            Ok(d) => d,
+            Err(e) => {
+                r.error = e;
+                return r;
+            }
+        };
+        let dn = d.file_name().unwrap().to_string_lossy().into_owned();
+        let m = self.meta(&d);
+        let t = m["type"].as_str().unwrap_or("code").to_string();
+        let Some(k) = self.kind(&t) else {
+            r.error = format!("unknown type '{t}' (no data/artifact_types/{t}.json)");
+            return r;
+        };
+        {
+            let mut running = self.running.lock().unwrap();
+            if let Some(other) = running.as_ref() {
+                r.error = format!("'{other}' is still running - wait for it or press Stop");
+                return r;
+            }
+            *running = Some(dn.clone());
+        }
+        self.live_out.lock().unwrap().clear();
+        let main = m["main"].as_str().unwrap_or(&k.main).to_string();
+        let r = runners::run(&k, &d, &dn, &main, cmd, k.in_sandbox(sandbox_pref), &self.stop, Some(&self.live_out));
+        *self.running.lock().unwrap() = None;
+        self.last_run.lock().unwrap().insert(dn, r.clone());
+        r
     }
 
     pub fn meta(&self, d: &Path) -> J {
@@ -196,8 +285,9 @@ impl Artifacts {
                 return None;
             }
             if !existed_art {
-                let t = typ.filter(|t| TYPES.iter().any(|x| x.0 == *t)).unwrap_or("page");
-                let main = if key.1.is_empty() { main_for(t).to_string() } else { key.1.clone() };
+                let kinds = self.kinds();
+                let t = typ.filter(|t| kinds.iter().any(|x| x.name == *t)).unwrap_or("page");
+                let main = if key.1.is_empty() { self.main_for(t) } else { key.1.clone() };
                 let tm = now();
                 std::fs::create_dir_all(&d).ok()?;
                 std::fs::write(
@@ -311,8 +401,13 @@ impl Artifacts {
             if d.join(".artifact.json").exists() {
                 return Ok(format!("artifact '{dn}' already exists - use write/edit to change it"));
             }
-            let t = s("type").filter(|t| TYPES.iter().any(|x| x.0 == t)).unwrap_or_else(|| "note".into());
-            let main = s("path").map(|p| p.replace('\\', "/").trim_matches('/').to_string()).filter(|p| !p.is_empty()).unwrap_or_else(|| main_for(&t).to_string());
+            let kinds = self.kinds();
+            let want = s("type").unwrap_or_else(|| "note".into());
+            let Some(kind) = kinds.iter().find(|k| k.name == want).cloned() else {
+                return Ok(format!("error: unknown type '{want}'. Types: {}", kinds.iter().map(|k| k.name.as_str()).collect::<Vec<_>>().join(", ")));
+            };
+            let t = kind.name.clone();
+            let main = s("path").map(|p| p.replace('\\', "/").trim_matches('/').to_string()).filter(|p| !p.is_empty()).unwrap_or_else(|| kind.main.clone());
             std::fs::create_dir_all(&d).map_err(|e| e.to_string())?;
             let tm = now();
             let title = s("title").unwrap_or_else(|| name.clone());
@@ -320,22 +415,90 @@ impl Artifacts {
             let (p, rel) = self.file(&d, Some(&main), &m)?;
             let body = match s("content") {
                 Some(c) => c,
-                None => match t.as_str() {
-                    "note" => format!("# {title}\n\n"),
-                    "data" => String::new(),
-                    "page" | "site" => format!("<!doctype html>\n<html><head><meta charset='utf-8'><title>{title}</title></head><body>\n</body></html>\n"),
-                    _ => format!("# {title}\n"),
-                },
+                None => kind.starters.iter().find(|x| x.0 == main).map(|x| starter_text(&x.1, &dn, &title)).unwrap_or_else(|| format!("# {title}\n")),
             };
             if body.len() > MAX_WRITE {
                 return Ok(format!("error: content larger than {MAX_WRITE} bytes"));
             }
             write_text(&p, &body)?;
+            // the type's other starter files (a Cargo.toml, package.json, ...) unless they would replace the main file
+            let mut extra = Vec::new();
+            for (sp, st) in &kind.starters {
+                if *sp != main {
+                    if let Ok((fp, r)) = self.file(&d, Some(sp), &m) {
+                        if !fp.exists() {
+                            write_text(&fp, &starter_text(st, &dn, &title))?;
+                            extra.push(r);
+                        }
+                    }
+                }
+            }
             self.save_meta(&d, &mut m)?;
-            return Ok(format!("created artifact '{dn}' ({t}) with {rel} ({} chars). Open it in the Artifacts tab.", body.chars().count()));
+            let runs = if kind.runnable() { format!(" Commands: {}.", kind.command_names(kind.in_sandbox(self.policy.lock().unwrap().sandbox)).join(", ")) } else { String::new() };
+            return Ok(format!(
+                "created artifact '{dn}' ({t}) with {rel} ({} chars){}.{runs} Open it in the Artifacts tab.",
+                body.chars().count(),
+                if extra.is_empty() { String::new() } else { format!(" and {}", extra.join(", ")) }
+            ));
+
+        }
+        if action == "types" {
+            let sb = self.policy.lock().unwrap().sandbox;
+            let rows: Vec<String> = self
+                .kinds()
+                .iter()
+                .map(|k| {
+                    let inside = k.in_sandbox(sb);
+                    let cmds = k.command_names(inside);
+                    let st = if !k.runnable() {
+                        "files only".to_string()
+                    } else {
+                        match runners::available(k, inside) {
+                            Ok(v) => format!("ready ({}{v})", if inside { "sandbox, " } else { "" }),
+                            Err(e) => format!("not ready: {e}"),
+                        }
+                    };
+                    format!("{}  main {}  - {}{}  [{st}]", k.name, k.main, k.description, if cmds.is_empty() { String::new() } else { format!("; commands: {}", cmds.join(", ")) })
+                })
+                .collect();
+            return Ok(rows.join("\n"));
         }
         let d = self.dir(&name, true)?;
         let mut m = self.meta(&d);
+        if action == "run" {
+            let cmd = s("command").unwrap_or_else(|| "run".into());
+            let pol = self.policy.lock().unwrap().clone();
+            let dn = d.file_name().unwrap().to_string_lossy().into_owned();
+            let t = m["type"].as_str().unwrap_or("code").to_string();
+            let Some(k) = self.kind(&t) else { return Ok(format!("error: unknown type '{t}'")) };
+            if !k.runnable() {
+                return Ok(format!("'{dn}' is a {t} artifact: there is nothing to run. Types with commands: see action 'types'."));
+            }
+            let inside = k.in_sandbox(pol.sandbox);
+            let Some(line) = k.commands_for(inside).iter().find(|c| c.0 == cmd).map(|c| c.1.clone()) else {
+                return Ok(format!("error: type '{t}' has no '{cmd}' command; it has: {}", k.command_names(inside).join(", ")));
+            };
+            let main = m["main"].as_str().unwrap_or(&k.main).to_string();
+            let shown = runners::fill(&line, &main, &dn).unwrap_or(line);
+            match pol.model.as_str() {
+                "auto" => {}
+                "ask" => {
+                    let ap = self.approver.lock().unwrap().clone();
+                    let Some(ap) = ap else {
+                        return Ok("Running needs the user's approval, and no one can approve here. Ask the user to press the command's button in the Artifacts tab.".into());
+                    };
+                    let q = format!("The model wants to run '{cmd}' for artifact '{dn}':\n\n    {shown}\n\n{}", if inside { "in the sandbox (no access to your Windows files)" } else { "on this PC, with your user's rights" });
+                    if !ap(&q) {
+                        return Ok(format!("The user did not allow running '{shown}'. Do not try again unless the user asks; explain what the command would do instead."));
+                    }
+                }
+                _ => {
+                    return Ok(format!("Running code is turned off for you (the user's setting 'Model may run artifact code'). The user can press '{cmd}' in the Artifacts tab; say what to expect."));
+                }
+            }
+            let r = self.run_command(&dn, &cmd, pol.sandbox);
+            return Ok(r.report(6000));
+        }
         match action.as_str() {
             "files" => {
                 let fs: Vec<String> = self.files(&d).into_iter().map(|f| format!("{f}  {} bytes", std::fs::metadata(d.join(&f)).map(|x| x.len()).unwrap_or(0))).collect();
@@ -449,10 +612,11 @@ impl Tool for ArtifactTool {
         NAME.into()
     }
     fn description(&self) -> String {
-        DESCRIPTION.into()
+        let ks = self.0.kinds();
+        format!("{DESCRIPTION} Types for create: {}.", ks.iter().map(|k| format!("{} ({})", k.name, k.main)).collect::<Vec<_>>().join(", "))
     }
     fn parameters(&self) -> J {
-        parameters()
+        parameters(&self.0.kinds())
     }
     fn run(&self, args: &J) -> String {
         self.0.act(args)

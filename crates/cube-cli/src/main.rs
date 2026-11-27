@@ -429,6 +429,14 @@ fn chat(a: &[String]) -> Result<()> {
     let mut s = Session::open(&p, &cfg)?;
     eprintln!("{}\nloaded in {:.1}s - {}", s.banner, t0.elapsed().as_secs_f64(), s.how);
     let tools = Tools::load(&p, &cfg.str("python"));
+    if let Some(d) = p.artifacts().parent() {
+        cube_core::runners::seed(&d.join("artifact_types"));
+    }
+    // the command line has no one to ask: "ask" behaves like "off" here
+    *tools.artifacts.policy.lock().unwrap() = cube_core::tools::artifact::RunPolicy {
+        model: cfg.str("artifact_run_by_model"),
+        sandbox: cfg.bool("artifact_sandbox"),
+    };
     let enabled = cfg.enabled_plugins();
     let mut history: Vec<serde_json::Value> = Vec::new();
     let lines: Vec<String> = match &prompt { Some(x) => vec![x.clone()], None => std::io::stdin().lines().map_while(|l| l.ok()).collect() };

@@ -7,6 +7,7 @@ pub mod hw;
 pub mod session;
 pub mod paths;
 pub mod reply;
+pub mod runners;
 pub mod settings;
 pub mod skills;
 pub mod storage;

@@ -7,6 +7,7 @@ streaming weights from the SSD, with a native window (egui) for chat, tools, art
 build.bat          build everything (cargo) + unit tests
 run.bat            start the window (target\release\cube-harness.exe)
 gpu_check.bat V    GPU engine vs CPU engine on a dense vault
+sandbox_setup.bat  WSL sandbox 'cube-sandbox' for artifact code: no Windows drives, no Windows programs, toolchains inside
 searxng_setup.bat  your own SearXNG search engine in WSL for the web plugin (start / stop: searxng_start.bat, searxng_stop.bat)
 web_check.bat      live test of the web plugin: search, read, loop protection, unsafe-site blocking
 bench_gptoss.bat V gpt-oss on real chat replies: output layer on the CPU vs on the GPU (both with RAM+VRAM expert tiers)
@@ -55,6 +56,22 @@ cube gpu-check <vault>
 * **Output layer on the GPU** (gpt-oss, with the expert tiers): its pinned RAM goes to the expert cache, so the number of
   cached experts stays about the same (345 RAM + 371 VRAM -> 431 RAM + 309 VRAM). Real chat, warm: 4.65 -> 5.92 tok/s;
   gpu-check logits relL2 3.7e-7, greedy 16/16. Host stand-in (`--dev-head-cpu`) bit-identical to `nvme_engine_u` on every test vault.
+
+## Artifacts that run
+
+An artifact's type (one JSON file each in `data/artifact_types/`, written by the app; edit them or add your own) gives
+its main file, starter files, how to tell its toolchain is installed, and its commands. Built in: note, page, site,
+code, data (files only) and python, node, rust, go, java, csharp, c, cpp, cuda, shell (Linux), latex, mermaid,
+graphviz, document (pandoc). The Artifacts tab shows a button per command (Run, Build, Test, ...) when the toolchain
+is found - else what to install - and the output below the editor; `Open <file>` opens what a build made (PDF, SVG, ...).
+
+* Where: on this PC (`cmd /C` in the artifact's folder), or in the WSL sandbox `cube-sandbox` (`sandbox_setup.bat`):
+  the files are copied in, the command runs as an unprivileged user with no Windows drives mounted and no way to start
+  Windows programs, and new or changed files are copied back. Linux-only types always run there; CUDA only here.
+* The model: Config > *Model may run artifact code*: `off` (only you), `ask` (a dialog per run), `auto`. It uses
+  `artifact(action='run', name=..., command='build'|'run'|'test')`, gets the output (compiler errors included) and
+  the files the run made, and can fix and run again. `artifact(action='types')` lists the types and what is installed.
+* Every run has a time limit (per type), can be stopped (Stop, or Stop / Force stop in Messages), output is capped.
 
 ## Web plugin and skill
 
