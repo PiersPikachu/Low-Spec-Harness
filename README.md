@@ -77,8 +77,10 @@ unless you edit them). Turn the tool on in the Plugins tab; the skill is added a
   downloads (by extension, content type and Content-Disposition), URLhaus malware and phishing-filter domain lists
   (refreshed daily), your own `web_blocklist.txt`. Page text is fenced as data, not instructions.
 * No loops: a research session keeps a ledger - pages read are never fetched again (normalized URLs: www, tracking
-  parameters, fragments, slashes), mirrors with identical text are recognised, reworded repeat searches return the
-  earlier results, and searches / pages / pages per site / 'more' have budgets; repeated revisits tell the model to answer.
+  parameters, fragments, slashes) and mirrors with identical text are recognised; repeated revisits tell the model to
+  answer. Searching again is fine: the same query shows the next results (8 at a time from what was fetched, then the
+  engine's next page). Budgets per session: 10 engine requests, 8 pages, 3 per site, 6 'more' (web_config.json:
+  max_searches, results_per_search, max_results, max_opens, max_per_site, max_more).
 * Context: older web results keep only their header and matched passages (`TOOL_DETAILS` marker in the harness).
 * With the web tool on, a reply may make at least 12 tool calls.
 

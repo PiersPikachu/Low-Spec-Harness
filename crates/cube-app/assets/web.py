@@ -9,13 +9,15 @@
 * the model never needs to copy URLs: results and links get short references (S3, L12, P2) that resolve to the
   exact URL that was shown;
 * a research session (ends 30 minutes after the last call) keeps a ledger: a page that was read is never fetched
-  again (the model gets its summary and can page through the cached copy with 'more'), mirrors with the same text
-  are recognised, repeated searches return the earlier results, and searches / page opens / pages per site have budgets;
+  again (the model gets its summary and can page through the cached copy with 'more'), and mirrors with the same text
+  are recognised. Searching again is fine: the same search again shows the next results (from the results already
+  fetched, else the engine's next page). Engine requests / page opens / pages per site have budgets;
 * 'open' needs a 'why': the model has to decide, before it follows a link, what it expects from the page;
 * page text is fenced as data from the web, never instructions.
 
 Settings (optional): web_config.json next to this file, e.g.
-  {"searxng_url": "http://127.0.0.1:8888", "searxng_wsl": "searxng", "brave_api_key": "...", "max_searches": 5, "max_opens": 8,
+  {"searxng_url": "http://127.0.0.1:8888", "searxng_wsl": "searxng", "brave_api_key": "...", "max_searches": 10,
+   "results_per_search": 8, "max_results": 15, "max_opens": 8,
    "max_per_site": 3, "max_more": 6, "part_chars": 2200, "allow_domains": [], "deny_domains": []}
 Self-test: python web.py --selftest
 """
@@ -53,7 +55,8 @@ PARAMETERS = {
         "why": {"type": "string", "description": "open: one sentence - what you expect this page to answer and why you trust it"},
         "find": {"type": "string", "description": "open / more (optional): words to look for; the best matching passages are shown first"},
         "part": {"type": "integer", "description": "more: which part of the page (1 = first)"},
-        "max_results": {"type": "integer", "description": "search: how many results (1-8, default 6)"},
+        "max_results": {"type": "integer", "description": "search: how many results to show (default 8)"},
+        "page": {"type": "integer", "description": "search (optional): which page of results; the same search again shows the next page by itself"},
     },
     "required": ["action"],
 }
@@ -65,7 +68,7 @@ SESSION_IDLE_S = 30 * 60
 # answered a Chrome UA from urllib with its "bots use DuckDuckGo too" challenge, and the plain one with results).
 UA = "cube-harness-web/1 (personal research assistant; Python urllib)"
 DETAILS = "--- details (shortened in older turns) ---"
-DEFAULTS = {"max_searches": 5, "max_opens": 8, "max_per_site": 3, "max_more": 6, "part_chars": 2200, "max_links": 20,
+DEFAULTS = {"max_searches": 10, "results_per_search": 8, "max_results": 15, "max_opens": 8, "max_per_site": 3, "max_more": 6, "part_chars": 2200, "max_links": 20,
             "searxng_url": "", "brave_api_key": "", "tavily_api_key": "", "allow_domains": [], "deny_domains": [],
             "timeout_s": 15, "user_agent": "", "searxng_wsl": ""}
 BLOCKLISTS = [
@@ -660,22 +663,22 @@ def _cool(name, secs=1800):
         json.dump(d, f)
 
 
-def search_providers(q, c):
+def search_providers(q, c, page=1):
     """Configured APIs first (reliable), then keyless pages. A keyless engine that answers with a bot check is left
-    alone for 30 minutes instead of being asked again."""
+    alone for 30 minutes instead of being asked again. page > 1: only engines that can page (SearXNG, Brave, Bing)."""
     tried = []
     apis = []
-    if c.get("brave_api_key"):
+    if c.get("brave_api_key") and page <= 10:
         apis.append(("brave", lambda: [(r["url"], r.get("title", ""), _strip(r.get("description", "")))
-                                       for r in json.loads(fetch("https://api.search.brave.com/res/v1/web/search?" + urllib.parse.urlencode({"q": q, "count": 10}), c,
+                                       for r in json.loads(fetch("https://api.search.brave.com/res/v1/web/search?" + urllib.parse.urlencode({"q": q, "count": 20, "offset": page - 1}), c,
                                                                  headers={"Accept": "application/json", "X-Subscription-Token": c["brave_api_key"]}, internal=True)[0]).get("web", {}).get("results", [])]))
-    if c.get("tavily_api_key"):
+    if c.get("tavily_api_key") and page == 1:
         apis.append(("tavily", lambda: [(r["url"], r.get("title", ""), _strip(r.get("content", "")))
                                         for r in json.loads(fetch("https://api.tavily.com/search", c, data=json.dumps({"query": q, "max_results": 8, "api_key": c["tavily_api_key"]}).encode(),
                                                                   headers={"Content-Type": "application/json", "Authorization": "Bearer " + c["tavily_api_key"]}, internal=True)[0]).get("results", [])]))
     if c.get("searxng_url"):
         def searx():
-            u = c["searxng_url"].rstrip("/") + "/search?" + urllib.parse.urlencode({"q": q, "format": "json"})
+            u = c["searxng_url"].rstrip("/") + "/search?" + urllib.parse.urlencode({"q": q, "format": "json", "pageno": page})
             try:
                 body = fetch(u, c, internal=True)[0]
             except IOError as ex:
@@ -695,8 +698,8 @@ def search_providers(q, c):
             tried.append("%s: %s" % (name, ex))
     form = {"Content-Type": "application/x-www-form-urlencoded"}
     pages = [("duckduckgo", "https://html.duckduckgo.com/html/", urllib.parse.urlencode({"q": q}).encode(), form, parse_ddg_html),
-             ("duckduckgo lite", "https://lite.duckduckgo.com/lite/", urllib.parse.urlencode({"q": q}).encode(), form, parse_ddg_lite),
-             ("bing", "https://www.bing.com/search?" + urllib.parse.urlencode({"q": q}), None, None, parse_bing)]
+             ("duckduckgo lite", "https://lite.duckduckgo.com/lite/", urllib.parse.urlencode({"q": q}).encode(), form, parse_ddg_lite)] if page == 1 else []
+    pages.append(("bing", "https://www.bing.com/search?" + urllib.parse.urlencode({"q": q, "first": (page - 1) * 10 + 1}), None, None, parse_bing))
     for name, url, data, hdr, parse in pages:
         if _cooling(name.split()[0]):
             tried.append("%s: skipped (it asked for a bot check recently)" % name)
@@ -721,7 +724,7 @@ def search_providers(q, c):
 
 def budget_line(s, c, site=None):
     k = s["counts"]
-    b = "Budget used: searches %d/%d, pages %d/%d, 'more' %d/%d" % (k["search"], c["max_searches"], k["open"], c["max_opens"], k["more"], c["max_more"])
+    b = "Budget used: engine requests %d/%d, pages %d/%d, 'more' %d/%d" % (k["search"], c["max_searches"], k["open"], c["max_opens"], k["more"], c["max_more"])
     if site:
         b += ", %s %d/%d" % (site, s["domains"].get(site, 0), c["max_per_site"])
     return b
@@ -743,54 +746,72 @@ def words(q):
     return set(re.findall(r"\w+", q.lower())) - {"the", "a", "an", "of", "in", "on", "for", "to", "and", "or", "is", "what", "how"}
 
 
-def act_search(s, c, query, max_results):
+def act_search(s, c, query, max_results, page=0):
+    """Results are kept per query: the same search again shows the next ones (no new request while fetched results are
+    left; then the engine's next page). Only engine requests count against the search budget."""
     q = " ".join((query or "").split())
     if not q:
         return "error: give 'query' (the search terms)."
-    w = words(q)
-    for prev in s["searches"]:
-        pw = set(prev["words"])
-        if w and pw and len(w & pw) / len(w | pw) >= 0.8:
-            lines = ["You already searched '%s' (step %d); nothing new would come back. Its results are still valid:" % (prev["query"], prev["step"])]
-            for r in prev["refs"]:
-                u = s["refs"].get(r, "")
-                lines.append("%s %s - %s %s" % (r, prev["titles"].get(r, ""), u, " ".join("[%s]" % x for x in flags(s, u, c))))
-            lines.append("Open one of these (action 'open'), or search with clearly different words.")
-            return "\n".join(lines)
-    if s["counts"]["search"] >= c["max_searches"]:
-        return "Search budget used up (%d searches). Answer with what you have read, citing the pages [P#] - do not search again." % c["max_searches"]
-    try:
-        res, prov = search_providers(q, c)
-    except Exception as ex:  # noqa: BLE001
-        return "error: search failed - %s. Try again later or with other words." % ex
-    s["counts"]["search"] += 1
-    s["step"] += 1
-    n = max(1, min(int(max_results or 6), 8))
-    out = ['Search "%s" (%s), step %d:' % (q, prov, s["step"])]
-    refs, titles, shown = [], {}, 0
-    for u, t, snip in res:
-        if shown >= n:
+    qkey = " ".join(sorted(words(q))) or q.lower()
+    n = max(1, min(int(max_results or c["results_per_search"]), int(c["max_results"])))
+    cache = s.setdefault("results", {}).setdefault(qkey, {"items": [], "shown": 0, "page": 0, "done": False, "provider": ""})
+    start = (int(page) - 1) * n if page and int(page) > 0 else cache["shown"]
+    errors = []
+    fetched = False
+    while len(cache["items"]) < start + n and not cache["done"] and not fetched:  # at most one engine request per call
+        if s["counts"]["search"] >= c["max_searches"]:
+            if not cache["items"][start:]:
+                return "Search budget used up (%d engine requests). Answer with what you have read, citing the pages [P#]." % c["max_searches"]
             break
-        if host_of(u).endswith("duckduckgo.com"):
-            continue
+        try:
+            res, prov = search_providers(q, c, cache["page"] + 1)
+        except Exception as ex:  # noqa: BLE001
+            errors.append(str(ex))
+            break
+        s["counts"]["search"] += 1
+        fetched = True
+        cache["page"] += 1
+        cache["provider"] = prov
+        have = {norm_url(x[0]) for x in cache["items"]}
+        new = 0
+        for u, t, snip in res:
+            k = norm_url(u)
+            if k in have or host_of(u).endswith("duckduckgo.com"):
+                continue
+            have.add(k)
+            cache["items"].append([u, t[:120], snip[:240]])
+            new += 1
+        if not new:
+            cache["done"] = True
+    shown_items = cache["items"][start:start + n]
+    if not shown_items:
+        if errors and not cache["items"]:
+            return "error: search failed - %s. Try again later or with other words." % errors[0]
+        return ("No more results for '%s' (%d shown in total). Search with different words, open one of the results, "
+                "or answer with what you have." % (q, len(cache["items"])))
+    s["step"] += 1
+    total = "%d%s" % (len(cache["items"]), "" if cache["done"] else "+")
+    out = ['Search "%s" (%s), results %d-%d of %s, step %d:' % (q, cache["provider"], start + 1, start + len(shown_items), total, s["step"])]
+    refs = []
+    for u, t, snip in shown_items:
+        before = any(r[0] == "S" and v == u for r, v in s["refs"].items())
         r = new_ref(s, "S", u)
         refs.append(r)
-        titles[r] = t[:120]
         f = flags(s, u, c)
+        if before and not any(x.startswith("read as") for x in f):
+            f.insert(0, "listed before")
         blocked = any(x.startswith("BLOCKED") for x in f)
-        out.append("%s %s - %s%s" % (r, t[:120], host_of(u), "".join(" [%s]" % x for x in f)))
+        out.append("%s %s - %s%s" % (r, t, host_of(u), "".join(" [%s]" % x for x in f)))
         if not blocked:
             out.append("   %s" % u)
             if snip:
-                out.append("   %s" % snip[:240])
-        shown += 1
-    if not refs:
-        out.append("(no results)")
-    s["searches"].append({"query": q, "words": sorted(w), "step": s["step"], "refs": refs, "titles": titles})
-    s["trail"].append("step %d: search '%s' -> %d results" % (s["step"], q, len(refs)))
+                out.append("   %s" % snip)
+    cache["shown"] = max(cache["shown"], start + len(shown_items))
+    s["searches"].append({"query": q, "step": s["step"], "refs": refs})
+    s["trail"].append("step %d: search '%s' -> results %d-%d" % (s["step"], q, start + 1, start + len(shown_items)))
     out.append(budget_line(s, c))
     out.append("Next: decide in your reasoning which ONE result most likely answers the question (trusted, on-topic, not read yet), "
-               "then open it with target 'S#' and a 'why'.")
+               "then open it with target 'S#' and a 'why'. The same search again shows the next results.")
     return "\n".join(out)
 
 
@@ -946,6 +967,7 @@ def act_status(s, c):
     if len(seen) == 0:
         lines.append("No pages read yet.")
     lines.append("Searches: " + ("; ".join("'%s'" % x["query"] for x in s["searches"]) or "none"))
+    lines.append("Pages are never fetched twice: open a result you have not read, or use 'more' on a page you have.")
     lines.append(budget_line(s, c))
     _, notes = blocklist(c, refresh=False)
     if notes:
@@ -953,14 +975,14 @@ def act_status(s, c):
     return "\n".join(lines)
 
 
-def run(action="", query="", target="", why="", find="", part=0, max_results=6, url="", **kw):
+def run(action="", query="", target="", why="", find="", part=0, max_results=0, url="", page=0, **kw):
     c = config()
     s = load_state()
     target = target or url or kw.get("ref") or ""
     a = (action or "").strip().lower()
     try:
         if a == "search":
-            out = act_search(s, c, query or kw.get("q", ""), max_results)
+            out = act_search(s, c, query or kw.get("q", ""), max_results, page)
         elif a == "open":
             out = act_open(s, c, target, why or kw.get("reason", ""), find)
         elif a == "more":
@@ -1019,7 +1041,7 @@ def selftest():
         r4 = run(action="more", target="P1", part=2)
         show("'more' pages through the cached copy", "not fetched again" in r4, r4.splitlines()[0][:100])
         r5 = run(action="search", query="rust programming language")
-        show("a repeated search returns the earlier results", r5.startswith("You already searched"), r5.splitlines()[0][:100])
+        show("the same search again shows the next results", ", results 9-" in r5.splitlines()[0] or r5.startswith("No more results"), r5.splitlines()[0][:100])
         other = next((ln.split()[0] for ln in r.splitlines() if re.match(r"S\d+ ", ln) and "BLOCKED" not in ln and ln.split()[0] != first), None)
         if other:
             r6 = run(action="open", target=other)
