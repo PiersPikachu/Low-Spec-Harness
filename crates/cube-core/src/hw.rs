@@ -9,6 +9,25 @@ pub fn ram_mb() -> (f64, f64) {
     (s.total_memory() as f64 / 1048576.0, s.available_memory() as f64 / 1048576.0)
 }
 
+/// One line on where RAM is: free RAM, this process, and the largest processes (working sets).
+pub fn mem_report() -> String {
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+    let mut s = System::new();
+    s.refresh_memory();
+    s.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing().with_memory());
+    let me = sysinfo::get_current_pid().ok().and_then(|p| s.process(p)).map_or(0, |p| p.memory());
+    let mut ps: Vec<(String, u64)> = s.processes().values().map(|p| (p.name().to_string_lossy().into_owned(), p.memory())).collect();
+    ps.sort_by(|a, b| b.1.cmp(&a.1));
+    let top: Vec<String> = ps.iter().take(4).map(|(n, m)| format!("{n} {:.0}", *m as f64 / 1048576.0)).collect();
+    format!(
+        "RAM: {:.0} MB free of {:.0}; this process {:.0} MB; largest (MB): {}",
+        s.available_memory() as f64 / 1048576.0,
+        s.total_memory() as f64 / 1048576.0,
+        me as f64 / 1048576.0,
+        top.join(", ")
+    )
+}
+
 pub fn threads() -> usize {
     std::thread::available_parallelism().map_or(1, |n| n.get())
 }

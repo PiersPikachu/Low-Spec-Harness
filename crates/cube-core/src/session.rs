@@ -76,7 +76,7 @@ impl Session {
         }
         let total_mb: f64 = (0..vault.n_streams()).map(|i| vault.stream(i).padded as f64).sum::<f64>() / 1e6;
         let how = if m.moe.is_some() {
-            format!("mixture of experts: attention + output pinned, experts in a RAM LRU cache ({:.0} MB), the rest read from the SSD", o.resident_mb)
+            format!("mixture of experts: attention + output pinned, experts in a RAM LRU cache ({:.0} MB, from {:.0} MB free at load), the rest read from the SSD", o.resident_mb, ram.1)
         } else if o.resident_mb >= total_mb {
             "CPU, all weights pinned in RAM".to_string()
         } else {

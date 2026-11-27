@@ -21,7 +21,8 @@ const USAGE: &str = "usage:
   cube gpu-check <vault> [--ctx N] [--tokens N] [--layers N]   GPU engine vs CPU engine: logits, hidden states, greedy text, speed
   cube bench <vault> [--prompt N] [--tokens N] [serve options]   greedy prefill + decode timing (synthetic tokens)
   cube chat-bench <vault> [--mode auto|cpu] [--rounds N] [--max-new N] [--threads N] [--cpu-head]
-                                        real chat replies in one session, as the app runs them: tok/s per reply, expert tier hits";
+                                        real chat replies in one session, as the app runs them: tok/s per reply, expert tier hits
+  cube mem                              free RAM, this process, the largest processes";
 
 fn main() {
     if let Err(e) = run() {
@@ -70,6 +71,10 @@ fn run() -> Result<()> {
         Some("serve") => serve(&a),
         Some("bench") => bench(&a),
         Some("chat-bench") => chat_bench(&a),
+        Some("mem") => {
+            println!("{}", cube_core::hw::mem_report());
+            Ok(())
+        }
         Some("chat") => chat(&a),
         Some("gpu-check") => gpu_check(&a),
         Some("verify-source") => {

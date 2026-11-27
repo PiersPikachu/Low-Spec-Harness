@@ -515,9 +515,11 @@ pub fn tune(p: &Paths, base: &Config, vault: &Path, tokens: i64, log: &mut dyn F
         for (k, v) in cd.as_object().unwrap() {
             c2.set(k, v.clone());
         }
+        log(format!("  before {cd}: {}", crate::hw::mem_report()));
         let t0 = Instant::now();
         let r = (|| -> Result<J> {
             let mut s = crate::session::Session::open(p, &c2)?;
+            log(format!("  loaded {cd}: {}", crate::hw::mem_report()));
             let (mut speeds, mut texts, mut early) = (Vec::new(), Vec::new(), false);
             for (i, pr) in PROMPTS.iter().enumerate() {
                 let (new, st) = s.reply(p, &[json!({"role": "user", "content": pr})], "", &tools, &[], 0, &mut |_| {}, &|| false)?;
@@ -549,6 +551,7 @@ pub fn tune(p: &Paths, base: &Config, vault: &Path, tokens: i64, log: &mut dyn F
         ));
         results.push(r);
     }
+    log(format!("  after the last candidate: {}", crate::hw::mem_report()));
     let good: Vec<&J> = results.iter().filter(|r| r["sane"] == true).collect();
     let Some(b) = good.iter().max_by(|a, b| a["tok_s"].as_f64().partial_cmp(&b["tok_s"].as_f64()).unwrap()) else {
         log("tuning found no working setting - keeping the recommended defaults".into());
