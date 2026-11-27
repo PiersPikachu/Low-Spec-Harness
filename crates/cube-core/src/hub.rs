@@ -517,14 +517,21 @@ pub fn tune(p: &Paths, base: &Config, vault: &Path, tokens: i64, log: &mut dyn F
     }
     log(format!("{} configuration(s) to test: {}", cands.len(), cands.iter().map(|c| c.to_string()).collect::<Vec<_>>().join("; ")));
     let tools = crate::tools::Tools { list: Vec::new(), artifacts: std::sync::Arc::new(crate::tools::artifact::Artifacts::new(p.artifacts())) };
-    let mut results = Vec::new();
+    // each candidate runs twice, in order then in reverse (A B C C B A): whatever drifts during tuning (the OS file
+    // cache warming, other programs, heat) then weighs on every candidate alike, and the two runs measure the noise
+    let mut runs: Vec<Vec<J>> = vec![Vec::new(); cands.len()];
     let mut best = 0.0f64;
-    for cd in &cands {
+    let order: Vec<(usize, usize)> = (0..cands.len()).map(|i| (1, i)).chain((0..cands.len()).rev().map(|i| (2, i))).collect();
+    for (pass, ci) in order {
+        let cd = &cands[ci];
+        if pass == 2 && runs[ci].first().map_or(true, |r| r["sane"] != true || r["early_stop"] == true) {
+            continue;
+        }
         let mut c2 = cfg.clone();
         for (k, v) in cd.as_object().unwrap() {
             c2.set(k, v.clone());
         }
-        log(format!("  before {cd}: {}", crate::hw::mem_report()));
+        log(format!("  run {pass}/2, before {cd}: {}", crate::hw::mem_report()));
         let t0 = Instant::now();
         let r = (|| -> Result<J> {
             let mut s = crate::session::Session::open(p, &c2)?;
@@ -536,21 +543,21 @@ pub fn tune(p: &Paths, base: &Config, vault: &Path, tokens: i64, log: &mut dyn F
                 speeds.push(sp);
                 let last = new.last().cloned().unwrap_or(J::Null);
                 texts.push(format!("{}{}", last["content"].as_str().unwrap_or(""), last["thinking"].as_str().unwrap_or("")));
-                if i == 0 && best > 0.0 && speeds[0] < 0.6 * best {
+                if pass == 1 && i == 0 && best > 0.0 && speeds[0] < 0.6 * best {
                     early = true;
                     break;
                 }
             }
             let sane = texts.iter().all(|t| !t.trim().is_empty()) && !texts.iter().any(|t| loops(t));
             let tok_s = (speeds.iter().sum::<f64>() / speeds.len() as f64 * 1000.0).round() / 1000.0;
-            Ok(json!({"settings": cd, "tok_s": tok_s, "sane": sane, "how": s.how, "secs": t0.elapsed().as_secs(), "early_stop": early}))
+            Ok(json!({"settings": cd, "run": pass, "tok_s": tok_s, "sane": sane, "how": s.how, "secs": t0.elapsed().as_secs(), "early_stop": early}))
         })()
-        .unwrap_or_else(|e| json!({"settings": cd, "tok_s": 0.0, "sane": false, "error": e.to_string(), "secs": t0.elapsed().as_secs()}));
-        if r["sane"] == true {
+        .unwrap_or_else(|e| json!({"settings": cd, "run": pass, "tok_s": 0.0, "sane": false, "error": e.to_string(), "secs": t0.elapsed().as_secs()}));
+        if r["sane"] == true && r["early_stop"] != true {
             best = best.max(r["tok_s"].as_f64().unwrap_or(0.0));
         }
         log(format!(
-            "  {} {}: {} tok/s in {} s{}{}",
+            "  {} {} run {pass}: {} tok/s in {} s{}{}",
             r["how"].as_str().unwrap_or(""),
             cd,
             r["tok_s"],
@@ -558,14 +565,43 @@ pub fn tune(p: &Paths, base: &Config, vault: &Path, tokens: i64, log: &mut dyn F
             if r["early_stop"] == true { "  (stopped early: slower)" } else { "" },
             if r["sane"] == true { String::new() } else { format!("  (rejected: {})", r["error"].as_str().unwrap_or("empty or looping reply")) }
         ));
-        results.push(r);
+        runs[ci].push(r);
     }
-    log(format!("  after the last candidate: {}", crate::hw::mem_report()));
-    let good: Vec<&J> = results.iter().filter(|r| r["sane"] == true).collect();
-    let Some(b) = good.iter().max_by(|a, b| a["tok_s"].as_f64().partial_cmp(&b["tok_s"].as_f64()).unwrap()) else {
+    log(format!("  after the last run: {}", crate::hw::mem_report()));
+    // per candidate: mean of its sane runs; noise: the largest relative gap between a candidate's two runs
+    let mut results = Vec::new();
+    let mut noise = 0.0f64;
+    for (ci, rs) in runs.iter().enumerate() {
+        let ok: Vec<f64> = rs.iter().filter(|r| r["sane"] == true && r["early_stop"] != true).filter_map(|r| r["tok_s"].as_f64()).collect();
+        let sane = !ok.is_empty() && rs.iter().all(|r| r["sane"] == true);
+        let mean = if ok.is_empty() { 0.0 } else { ok.iter().sum::<f64>() / ok.len() as f64 };
+        if ok.len() == 2 && mean > 0.0 {
+            noise = noise.max((ok[0] - ok[1]).abs() / mean);
+        }
+        results.push(json!({"settings": cands[ci], "tok_s": (mean * 1000.0).round() / 1000.0, "runs": ok, "sane": sane, "detail": rs}));
+    }
+    let mut good: Vec<&J> = results.iter().filter(|r| r["sane"] == true).collect();
+    good.sort_by(|a, b| b["tok_s"].as_f64().partial_cmp(&a["tok_s"].as_f64()).unwrap());
+    let Some(top) = good.first().copied() else {
         log("tuning found no working setting - keeping the recommended defaults".into());
         return Ok(None);
     };
+    let tops = top["tok_s"].as_f64().unwrap_or(0.0);
+    for r in &good {
+        log(format!("  {}: mean {} tok/s over runs {}", r["settings"], r["tok_s"], r["runs"]));
+    }
+    log(format!("  noise: the two runs of one setting differed by up to {:.1}%", 100.0 * noise));
+    // a tie within the noise goes to the earliest candidate (fewest threads: leaves the machine more responsive)
+    let tied: Vec<&J> = good.iter().copied().filter(|r| tops - r["tok_s"].as_f64().unwrap_or(0.0) <= noise * tops).collect();
+    let b = results.iter().filter(|r| tied.iter().any(|t| std::ptr::eq(*t, *r))).next().unwrap_or(top);
+    if tied.len() > 1 {
+        log(format!(
+            "  {} setting(s) within the noise of the fastest ({}): choosing {} (fewest threads)",
+            tied.len(),
+            top["settings"],
+            b["settings"]
+        ));
+    }
     let out = json!({"date": chrono::Local::now().format("%Y-%m-%d %H:%M").to_string(), "settings": b["settings"], "tok_s": b["tok_s"], "results": results});
     std::fs::write(vault.join("tuned.json"), serde_json::to_string_pretty(&out)?)?;
     log(format!("best: {} -> {} tok/s (saved to {}/tuned.json)", b["settings"], b["tok_s"], vault.file_name().unwrap().to_string_lossy()));
