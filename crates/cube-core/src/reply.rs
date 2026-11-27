@@ -67,9 +67,52 @@ pub fn loads_lenient(s: &str) -> Result<J, serde_json::Error> {
                     out.push(c);
                 }
             }
-            serde_json::from_str::<J>(&out).map_err(|_| e)
+            serde_json::from_str::<J>(&out).or_else(|_| serde_json::from_str::<J>(&repair_quotes(&out))).map_err(|_| e)
         }
     }
+}
+
+/// True when a `"` at `c[i]` inside a string closes it: the next non-blank character is JSON structure (or nothing).
+fn closes(c: &[char], i: usize) -> bool {
+    match c[i + 1..].iter().find(|x| !x.is_whitespace()) {
+        None => true,
+        Some(&x) => matches!(x, ',' | '}' | ']' | ':'),
+    }
+}
+
+/// Escape double quotes that small models leave raw inside string values (HTML attributes: onclick="f('x')"): a quote
+/// that is not followed by `,` `}` `]` `:` cannot end the string, so it becomes `\"`.
+pub fn repair_quotes(s: &str) -> String {
+    let c: Vec<char> = s.chars().collect();
+    let mut out = String::with_capacity(s.len() + 16);
+    let (mut in_str, mut esc) = (false, false);
+    for i in 0..c.len() {
+        let ch = c[i];
+        if in_str {
+            if esc {
+                esc = false;
+            } else if ch == '\\' {
+                esc = true;
+            } else if ch == '"' {
+                if closes(&c, i) {
+                    in_str = false;
+                } else {
+                    out.push('\\');
+                }
+            }
+        } else if ch == '"' {
+            in_str = true;
+        }
+        out.push(ch);
+    }
+    out
+}
+
+fn bad_json(blob: &str) -> J {
+    json!({"_error": format!(
+        "the tool call was NOT run and nothing was saved: its JSON is invalid ({}...). Inside JSON strings write double quotes as \\\" and new lines as \\n - in HTML, single quotes for attributes avoid the problem. Send the corrected call.",
+        trunc(blob, 160)
+    )})
 }
 
 fn err_args(msg: String, cut: bool) -> J {
@@ -86,11 +129,11 @@ pub fn parse_tool_calls(text: &str) -> Vec<(String, J)> {
                 let name = c.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
                 let mut args = c.get("arguments").cloned().unwrap_or(json!({}));
                 if let J::String(s) = &args {
-                    args = loads_lenient(if s.is_empty() { "{}" } else { s }).unwrap_or_else(|_| json!({"_error": format!("could not parse tool call JSON: {}", trunc(blob, 200))}));
+                    args = loads_lenient(if s.is_empty() { "{}" } else { s }).unwrap_or_else(|_| bad_json(blob));
                 }
                 calls.push((name, args));
             }
-            Err(_) => calls.push((String::new(), json!({"_error": format!("could not parse tool call JSON: {}", trunc(blob, 200))}))),
+            Err(_) => calls.push((String::new(), bad_json(blob))),
         }
     }
     if let Some(i) = text.rfind("<tool_call>") {
@@ -169,7 +212,12 @@ pub fn partial_json_str(text: &str, key: &str) -> Option<String> {
     while i < b.len() {
         let ch = b[i];
         if ch == '"' {
-            break;
+            if closes(&b, i) {
+                break;
+            }
+            out.push(ch); // a raw quote the model forgot to escape (see repair_quotes)
+            i += 1;
+            continue;
         }
         if ch == '\\' {
             if i + 1 >= b.len() {
@@ -447,6 +495,16 @@ mod tests {
         assert_eq!(p.text.as_deref(), Some("<h1>\"hi\"\nline"));
         assert_eq!(chunk_cut("a\nb", true), Some(2));
         assert_eq!(cap_cut("ab\ncd\nef", 7), 6);
+    }
+    #[test]
+    fn raw_quotes() {
+        let t = r#"<tool_call>
+{"name": "artifact", "arguments": {"action": "create", "name": "hello-page", "type": "page", "content": "<button onclick=\"alert('Hi')">Click</button>"}}
+</tool_call>"#;
+        let r = parse_reply(t);
+        assert_eq!(r.calls[0].1["content"], json!("<button onclick=\"alert('Hi')\">Click</button>"));
+        let p = partial_call(&t[..t.len() - 20]).map(|p| p.text);
+        assert!(p.is_none() || p.unwrap().unwrap().contains("Hi')\">Click"));
     }
     #[test]
     fn lenient() {
