@@ -681,7 +681,10 @@ fn release_chat(a: &mut App) -> bool {
         a.status = "Wait for the current reply to finish (or Force stop it) first.".into();
         return false;
     }
-    let _ = a.worker.tx.send(crate::worker::Cmd::Unload);
+    // wait until the chat model is really gone: tuning / installing measure free RAM and VRAM right after this
+    let (tx, rx) = std::sync::mpsc::channel();
+    let _ = a.worker.tx.send(crate::worker::Cmd::Unload(Some(tx)));
+    let _ = rx.recv_timeout(std::time::Duration::from_secs(20));
     true
 }
 

@@ -11,7 +11,8 @@ use std::time::Instant;
 
 pub enum Cmd {
     Load(Config),
-    Unload,
+    /// drop the loaded model; the sender (if any) is told once its RAM and VRAM are free
+    Unload(Option<std::sync::mpsc::Sender<()>>),
     Reply { cfg: Config, history: Vec<J>, system: String, enabled: Vec<String>, max_rounds: usize },
 }
 
@@ -28,7 +29,7 @@ pub enum Msg {
 
 /// What identifies a loaded engine: a change to any of these reloads the model.
 pub fn key(c: &Config) -> String {
-    ["vault", "ctx", "kv16", "resident_mb", "threads", "mode", "gpu_layers"].iter().map(|k| c.get(k).to_string()).collect::<Vec<_>>().join("|")
+    ["vault", "ctx", "kv16", "resident_mb", "threads", "mode", "gpu_layers", "cpu_head"].iter().map(|k| c.get(k).to_string()).collect::<Vec<_>>().join("|")
 }
 
 pub struct Worker {
@@ -83,10 +84,13 @@ impl Worker {
                             }
                             send(Msg::Idle);
                         }
-                        Cmd::Unload => {
+                        Cmd::Unload(done) => {
                             sess = None;
                             skey.clear();
                             *abort2.lock().unwrap() = None;
+                            if let Some(d) = done {
+                                let _ = d.send(());
+                            }
                             send(Msg::Unloaded);
                         }
                         Cmd::Reply { cfg, history, system, enabled, max_rounds } => {

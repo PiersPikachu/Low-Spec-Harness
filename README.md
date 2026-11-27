@@ -51,7 +51,8 @@ cube gpu-check <vault>
   `nvme_engine_u` with 3 and 1000 device slots. On the RTX 3060 (gpt-oss-20b, every expert from the device tier): prompt logits relL2 3.1e-7, greedy 16/16 identical.
   Real chat (`cube chat-bench`, warm): 3.64 tok/s CPU-only -> 4.81 tok/s with the VRAM tier (cache hits 85% -> 99%).
 * **Output layer on the GPU** (gpt-oss, with the expert tiers): its pinned RAM goes to the expert cache, so the number of
-  cached experts stays the same. Host stand-in (`--dev-head-cpu`) bit-identical to `nvme_engine_u` on every test vault.
+  cached experts stays about the same (345 RAM + 371 VRAM -> 431 RAM + 309 VRAM). Real chat, warm: 4.65 -> 5.92 tok/s;
+  gpu-check logits relL2 3.7e-7, greedy 16/16. Host stand-in (`--dev-head-cpu`) bit-identical to `nvme_engine_u` on every test vault.
 
 ## Not ported yet
 

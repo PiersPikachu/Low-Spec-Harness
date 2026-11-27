@@ -109,7 +109,7 @@ impl App {
             p,
             cfg,
             tab: Tab::Messages,
-            status: "ready - no model loaded".into(),
+            status: if instance_lock() { "ready - no model loaded".into() } else { "WARNING: another Cube Harness window is open - each loads its own model into the same RAM and VRAM; close one".into() },
             worker,
             tools,
             busy: false,
@@ -220,7 +220,7 @@ impl App {
         if self.busy {
             return;
         }
-        let _ = self.worker.tx.send(Cmd::Unload);
+        let _ = self.worker.tx.send(Cmd::Unload(None));
     }
 
     pub fn send(&mut self) {
@@ -560,6 +560,12 @@ impl eframe::App for App {
             ctx.request_repaint_after(std::time::Duration::from_millis(250));
         }
     }
+}
+
+/// true when this is the only window: holds a localhost port for the life of the process
+fn instance_lock() -> bool {
+    static L: std::sync::OnceLock<Option<std::net::TcpListener>> = std::sync::OnceLock::new();
+    L.get_or_init(|| std::net::TcpListener::bind(("127.0.0.1", 47613)).ok()).is_some()
 }
 
 fn main() -> eframe::Result<()> {
