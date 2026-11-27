@@ -59,7 +59,8 @@ def engines():
     if not hp.ENGINE.exists():
         if shutil.which("gcc") and ask("nvme_engine_u.exe is missing - build it with gcc (build.bat)?"):
             subprocess.run(["cmd", "/c", str(hp.ENGINE_DIR / "build.bat")], cwd=str(hp.ENGINE_DIR))
-        else: notes.append("nvme_engine_u.exe is missing and gcc is not on PATH (install MinGW-w64, then rerun setup)")
+        else: notes.append("nvme_engine_u.exe is missing and gcc is not on PATH - install MinGW-w64 gcc "
+                          "(winget install -e --id BrechtSanders.WinLibs.POSIX.UCRT), then rerun setup; see README.md, 'gcc: when you need it'")
     if not hp.GPU_ENGINE.exists():
         if shutil.which("nvcc") and ask("gpu\\gpu_engine.exe is missing - build it with nvcc?"):
             subprocess.run(["cmd", "/c", "nvbuild.bat", "gpu_engine.cu"], cwd=str(hp.ENGINE_DIR / "gpu"))
