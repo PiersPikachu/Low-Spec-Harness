@@ -2,3 +2,4 @@
 *.cv8.tmp
 /data/
 gpu_check_log.txt
+__pycache__/

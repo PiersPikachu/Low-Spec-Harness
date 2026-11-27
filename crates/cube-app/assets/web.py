@@ -61,10 +61,13 @@ PARAMETERS = {
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATE = os.environ.get("CUBE_WEB_STATE") or os.path.join(HERE, "web_state")
 SESSION_IDLE_S = 30 * 60
-UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36"
+# An honest, identifying user agent: a browser string on a non-browser client is what bot checks catch (DuckDuckGo
+# answered a Chrome UA from urllib with its "bots use DuckDuckGo too" challenge, and the plain one with results).
+UA = "cube-harness-web/1 (personal research assistant; Python urllib)"
 DETAILS = "--- details (shortened in older turns) ---"
 DEFAULTS = {"max_searches": 5, "max_opens": 8, "max_per_site": 3, "max_more": 6, "part_chars": 2200, "max_links": 20,
-            "searxng_url": "", "brave_api_key": "", "allow_domains": [], "deny_domains": [], "timeout_s": 15}
+            "searxng_url": "", "brave_api_key": "", "tavily_api_key": "", "allow_domains": [], "deny_domains": [],
+            "timeout_s": 15, "user_agent": ""}
 BLOCKLISTS = [
     ("malware (URLhaus)", ["https://malware-filter.gitlab.io/malware-filter/urlhaus-filter-domains.txt",
                            "https://curbengh.github.io/malware-filter/urlhaus-filter-domains.txt"]),
@@ -328,7 +331,7 @@ def fetch(u, c, max_bytes=3 << 20, data=None, headers=None, internal=False):
         dns = check_dns(host_of(u))
         if dns:
             raise PermissionError(dns)
-        h = {"User-Agent": UA, "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5",
+        h = {"User-Agent": c.get("user_agent") or UA, "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5",
              "Accept-Language": "en-US,en;q=0.8", "Accept-Encoding": "gzip, deflate"}
         h.update(headers or {})
         req = urllib.request.Request(u, data=data, headers=h)
@@ -539,6 +542,7 @@ def _ddg_unwrap(href):
 
 
 def _strip(s):
+    s = re.sub(r"</?(?:b|strong|em|i|span|mark)\b[^>]*>", "", s)
     return " ".join(html.unescape(re.sub(r"<[^>]+>", " ", s)).split())
 
 
@@ -566,39 +570,102 @@ def parse_ddg_lite(page):
     return out
 
 
+def _bing_unwrap(href):
+    import base64
+    href = html.unescape(href)
+    if "bing.com/ck/a" in href:
+        u = urllib.parse.parse_qs(urllib.parse.urlsplit(href).query).get("u", [""])[0]
+        if u.startswith("a1"):
+            b = u[2:]
+            try:
+                return base64.urlsafe_b64decode(b + "=" * (-len(b) % 4)).decode("utf-8", "replace")
+            except ValueError:
+                pass
+    return href
+
+
+def parse_bing(page):
+    out = []
+    for blk in re.split(r'<li class="b_algo"', page)[1:]:
+        a = re.search(r'<h2[^>]*>\s*<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>', blk, re.S)
+        if not a:
+            continue
+        rest = blk[a.end():]
+        sn = re.search(r'<p[^>]*>(.*?)</p>', rest, re.S)
+        snip = re.sub(r"^\s*(?:\d+ \w+ \d{4}|\w+ \d+, \d{4})\s*·\s*", "", _strip(sn.group(1))) if sn else ""
+        out.append((_bing_unwrap(a.group(1)), _strip(a.group(2)), snip))
+    return out
+
+
+CHALLENGE = ("bots use duckduckgo too", "complete the following challenge", "unusual traffic", "captcha", "are you a robot")
+
+
+def _cooling(name):
+    try:
+        with open(os.path.join(STATE, "cooldown.json"), encoding="utf-8") as f:
+            return json.load(f).get(name, 0) > time.time()
+    except (OSError, ValueError):
+        return False
+
+
+def _cool(name, secs=1800):
+    p = os.path.join(STATE, "cooldown.json")
+    try:
+        with open(p, encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        d = {}
+    d[name] = time.time() + secs
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(d, f)
+
+
 def search_providers(q, c):
+    """Configured APIs first (reliable), then keyless pages. A keyless engine that answers with a bot check is left
+    alone for 30 minutes instead of being asked again."""
     tried = []
+    apis = []
     if c.get("brave_api_key"):
-        try:
-            body, _, _, _ = fetch("https://api.search.brave.com/res/v1/web/search?" + urllib.parse.urlencode({"q": q, "count": 10}),
-                                  c, headers={"Accept": "application/json", "X-Subscription-Token": c["brave_api_key"]}, internal=True)
-            j = json.loads(body)
-            res = [(r["url"], r.get("title", ""), _strip(r.get("description", ""))) for r in j.get("web", {}).get("results", [])]
-            if res:
-                return res, "brave"
-        except Exception as ex:  # noqa: BLE001
-            tried.append("brave: %s" % ex)
+        apis.append(("brave", lambda: [(r["url"], r.get("title", ""), _strip(r.get("description", "")))
+                                       for r in json.loads(fetch("https://api.search.brave.com/res/v1/web/search?" + urllib.parse.urlencode({"q": q, "count": 10}), c,
+                                                                 headers={"Accept": "application/json", "X-Subscription-Token": c["brave_api_key"]}, internal=True)[0]).get("web", {}).get("results", [])]))
+    if c.get("tavily_api_key"):
+        apis.append(("tavily", lambda: [(r["url"], r.get("title", ""), _strip(r.get("content", "")))
+                                        for r in json.loads(fetch("https://api.tavily.com/search", c, data=json.dumps({"query": q, "max_results": 8, "api_key": c["tavily_api_key"]}).encode(),
+                                                                  headers={"Content-Type": "application/json", "Authorization": "Bearer " + c["tavily_api_key"]}, internal=True)[0]).get("results", [])]))
     if c.get("searxng_url"):
+        apis.append(("searxng", lambda: [(r["url"], r.get("title", ""), _strip(r.get("content", "")))
+                                         for r in json.loads(fetch(c["searxng_url"].rstrip("/") + "/search?" + urllib.parse.urlencode({"q": q, "format": "json"}), c, internal=True)[0]).get("results", [])]))
+    for name, f in apis:
         try:
-            body, _, _, _ = fetch(c["searxng_url"].rstrip("/") + "/search?" + urllib.parse.urlencode({"q": q, "format": "json"}), c, internal=True)
-            j = json.loads(body)
-            res = [(r["url"], r.get("title", ""), _strip(r.get("content", ""))) for r in j.get("results", [])]
-            if res:
-                return res, "searxng"
-        except Exception as ex:  # noqa: BLE001
-            tried.append("searxng: %s" % ex)
-    for name, url, parse in (("duckduckgo", "https://html.duckduckgo.com/html/", parse_ddg_html),
-                             ("duckduckgo lite", "https://lite.duckduckgo.com/lite/", parse_ddg_lite)):
-        try:
-            body, _, _, _ = fetch(url, c, data=urllib.parse.urlencode({"q": q}).encode(),
-                                  headers={"Content-Type": "application/x-www-form-urlencoded", "Referer": url}, internal=True)
-            res = parse(body.decode("utf-8", "replace"))
+            res = f()
             if res:
                 return res, name
-            tried.append("%s: no results in the page (blocked or changed)" % name)
+            tried.append("%s: no results" % name)
         except Exception as ex:  # noqa: BLE001
             tried.append("%s: %s" % (name, ex))
-    raise IOError("; ".join(tried))
+    form = {"Content-Type": "application/x-www-form-urlencoded"}
+    pages = [("duckduckgo", "https://html.duckduckgo.com/html/", urllib.parse.urlencode({"q": q}).encode(), form, parse_ddg_html),
+             ("duckduckgo lite", "https://lite.duckduckgo.com/lite/", urllib.parse.urlencode({"q": q}).encode(), form, parse_ddg_lite),
+             ("bing", "https://www.bing.com/search?" + urllib.parse.urlencode({"q": q}), None, None, parse_bing)]
+    for name, url, data, hdr, parse in pages:
+        if _cooling(name.split()[0]):
+            tried.append("%s: skipped (it asked for a bot check recently)" % name)
+            continue
+        try:
+            body, _, _, _ = fetch(url, c, data=data, headers=hdr, internal=True)
+            page = body.decode("utf-8", "replace")
+            res = parse(page)
+            if res:
+                return res, name
+            if any(x in page.lower() for x in CHALLENGE):
+                _cool(name.split()[0])
+                tried.append("%s: answered with a bot check (left alone for 30 minutes)" % name)
+            else:
+                tried.append("%s: no results in the page" % name)
+        except Exception as ex:  # noqa: BLE001
+            tried.append("%s: %s" % (name, ex))
+    raise IOError("; ".join(tried) + ". For reliable search set searxng_url, tavily_api_key or brave_api_key in web_config.json")
 
 
 # ----------------------------------------------------------------------------------------------- actions
@@ -901,8 +968,10 @@ def selftest():
         show("'more' pages through the cached copy", "not fetched again" in r4, r4.splitlines()[0][:100])
         r5 = run(action="search", query="rust programming language")
         show("a repeated search returns the earlier results", r5.startswith("You already searched"), r5.splitlines()[0][:100])
-        r6 = run(action="open", target="S1")
-        show("open without a 'why' is refused", "'why' is missing" in r6 or r6.startswith("ALREADY READ"), r6.splitlines()[0][:100])
+        other = next((ln.split()[0] for ln in r.splitlines() if re.match(r"S\d+ ", ln) and "BLOCKED" not in ln and ln.split()[0] != first), None)
+        if other:
+            r6 = run(action="open", target=other)
+            show("open without a 'why' is refused", "'why' is missing" in r6, r6.splitlines()[0][:100])
     print("\n--- status\n" + run(action="status"))
     print("\nWEB CHECK %s" % ("PASS" if ok_all else "FAIL"))
     return 0 if ok_all else 1

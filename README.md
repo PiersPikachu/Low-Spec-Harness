@@ -60,7 +60,10 @@ cube gpu-check <vault>
 `data/plugins/web.py` (tool `web`) and `data/skills/web-research.md` are installed by the app (and updated with it,
 unless you edit them). Turn the tool on in the Plugins tab; the skill is added automatically while it is on.
 
-* `search` -> results S1.. (DuckDuckGo HTML, lite fallback; or SearXNG / Brave API from `data/plugins/web_config.json`),
+* `search` -> results S1.. from a configured API first (`searxng_url`, `tavily_api_key` or `brave_api_key` in
+  `data/plugins/web_config.json`), else keyless pages: DuckDuckGo HTML, DuckDuckGo lite, Bing. An engine that
+  answers with a bot check is left alone for 30 minutes. Keyless search is best effort (DuckDuckGo challenges
+  automated clients often); an API or your own SearXNG is the reliable route.
   `open` (target S#/L#/URL + a required `why`) -> page P# with its links L#, `more` -> another part of a page read,
   `status` -> what was read.
 * Safety: http/https only, no credentials in URLs, no private / local / reserved addresses (checked again after DNS
