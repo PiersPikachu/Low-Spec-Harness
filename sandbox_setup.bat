@@ -28,13 +28,17 @@ wsl -d cube-sandbox -u root --exec bash -c "tr -d '\r' > /tmp/sandbox_setup.sh &
 if !errorlevel! neq 0 (echo sandbox setup failed - see above >> "%LOG%" & goto :done)
 echo Restarting it with the isolation settings and checking them ...
 wsl --terminate cube-sandbox >> "%LOG%" 2>&1
+rem start it once and give its boot command a moment
+wsl -d cube-sandbox -u runner --exec sleep 3 <nul >nul 2>&1
 echo ===== isolation check >> "%LOG%"
+rem leaks: a Windows drive or share mounted (drvfs / 9p), the .exe handler still registered, cmd.exe on PATH
 set "LEAK="
-for /f "usebackq delims=" %%L in (`wsl -d cube-sandbox -u runner --exec sh -c "ls -d /mnt/c /mnt/d 2>/dev/null; command -v cmd.exe powershell.exe 2>/dev/null; true" ^<nul`) do (
+rem (no double quotes inside the sh -c text: cmd would end its quoting there and read the | and && itself)
+for /f "usebackq delims=" %%L in (`wsl -d cube-sandbox -u runner --exec sh -c "grep -E ' (drvfs|9p) ' /proc/mounts | cut -d' ' -f2 | sed 's/^/mounted: /'; [ -e /proc/sys/fs/binfmt_misc/WSLInterop ] && echo 'Windows .exe handler still registered'; command -v cmd.exe powershell.exe 2>/dev/null; true" ^<nul`) do (
   echo LEAK: %%L >> "%LOG%"
   set "LEAK=1"
 )
-wsl -d cube-sandbox -u runner --exec sh -c "echo user: $(id -un); echo windows drives: $(ls -d /mnt/[a-z] 2>/dev/null | tr '\n' ' ')none; python3 --version" <nul >> "%LOG%" 2>&1
+wsl -d cube-sandbox -u runner --exec sh -c "echo user: $(id -un); echo Windows drives or shares mounted: $(grep -cE ' (drvfs|9p) ' /proc/mounts); python3 --version" <nul >> "%LOG%" 2>&1
 if defined LEAK (echo NOT ISOLATED - Windows drives or programs are still reachable from the sandbox, see above >> "%LOG%" & goto :done)
 echo SANDBOX READY - isolated: no Windows drives, no Windows programs, user runner >> "%LOG%"
 :done

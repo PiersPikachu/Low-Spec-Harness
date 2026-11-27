@@ -2,7 +2,8 @@
 # Sets up the WSL distro 'cube-sandbox' for running artifact code (run as root by sandbox_setup.bat; re-run to update).
 # Isolation (/etc/wsl.conf, applied after 'wsl --terminate cube-sandbox'):
 #   - no Windows drives mounted (no /mnt/c ...): code in here cannot read or change your Windows files
-#   - no Windows interop: code in here cannot start Windows programs (cmd.exe, powershell.exe, ...)
+#   - no Windows interop, its .exe handler removed and the Windows driver-store share unmounted: code in here cannot
+#     start Windows programs
 #   - runs as the unprivileged user 'runner'
 # Not isolated: the network (code can reach the internet, like any program), and it shares the WSL VM's CPU / memory.
 set -euo pipefail
@@ -31,7 +32,14 @@ appendWindowsPath = false
 
 [user]
 default = runner
+
+[boot]
+# at every start, as root: drop the handler that hands Windows .exe files to Windows, and the read-only share of the
+# Windows driver store (/usr/lib/wsl/drivers holds ~120 .exe files; only GPU code needs it, and the sandbox runs none)
+command = "echo -1 > /proc/sys/fs/binfmt_misc/WSLInterop 2>/dev/null; umount -l /usr/lib/wsl/drivers 2>/dev/null; rmdir /mnt/[a-z] 2>/dev/null; true"
 CONF
+# the drive folders from the first start (when drives were still mounted) stay behind empty: remove them
+rmdir /mnt/[a-z] 2>/dev/null || true
 cat /etc/wsl.conf
 
 step "versions"
