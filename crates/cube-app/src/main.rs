@@ -265,7 +265,11 @@ impl App {
             history,
             system: self.system(),
             enabled: self.cfg.enabled_plugins(),
-            max_rounds: self.cfg.i64("max_tool_rounds").max(0) as usize,
+            // web research needs several calls (search, open, maybe a link): at least 12 when the web tool is on
+            max_rounds: {
+                let n = self.cfg.i64("max_tool_rounds").max(0) as usize;
+                if self.cfg.enabled_plugins().iter().any(|x| x == "web") { n.max(12) } else { n }
+            },
         });
     }
 
@@ -494,6 +498,23 @@ fn seed_data(p: &Paths) {
     let f = p.skills().join("tool-calls.md");
     if !f.exists() && std::fs::read_dir(p.skills()).map(|mut r| r.next().is_none()).unwrap_or(true) {
         let _ = std::fs::write(f, include_str!("../assets/tool-calls.md"));
+    }
+    // files the harness manages: written when missing, replaced when a newer harness ships a different version - unless
+    // the user edited them (the marker is gone then: an edited skill loses 'managed:', a copied plugin gets a new name)
+    for (dir, name, body, marker) in [
+        (p.plugins(), "web.py", include_str!("../assets/web.py"), "managed by cube-harness"),
+        (p.skills(), "web-research.md", include_str!("../assets/web-research.md"), "managed: cube-harness"),
+    ] {
+        let f = dir.join(name);
+        let old = std::fs::read_to_string(&f).ok();
+        let replace = match &old {
+            None => true,
+            Some(o) => o != body && o.lines().take(8).any(|l| l.contains(marker)),
+        };
+        if replace {
+            let _ = std::fs::create_dir_all(&dir);
+            let _ = std::fs::write(&f, body);
+        }
     }
 }
 

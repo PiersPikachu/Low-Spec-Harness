@@ -127,7 +127,12 @@ pub fn parse_tool_calls(text: &str) -> Vec<(String, J)> {
         match loads_lenient(blob) {
             Ok(c) => {
                 let name = c.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
-                let mut args = c.get("arguments").cloned().unwrap_or(json!({}));
+                // small models sometimes put the arguments next to "name" instead of inside "arguments" (or "parameters")
+                let flat = || match &c {
+                    J::Object(o) => J::Object(o.iter().filter(|(k, _)| k.as_str() != "name").map(|(k, v)| (k.clone(), v.clone())).collect()),
+                    _ => json!({}),
+                };
+                let mut args = c.get("arguments").or_else(|| c.get("parameters")).cloned().unwrap_or_else(flat);
                 if let J::String(s) = &args {
                     args = loads_lenient(if s.is_empty() { "{}" } else { s }).unwrap_or_else(|_| bad_json(blob));
                 }
@@ -398,6 +403,10 @@ pub fn py_splitlines(text: &str) -> Vec<&str> {
 
 static BIG_ARG: OnceLock<Regex> = OnceLock::new();
 
+/// A tool result line that starts its bulky part (e.g. the web plugin's page text and link list): in older turns the
+/// result is cut there, so the summary above it stays and the context does not fill up with pages already read.
+pub const TOOL_DETAILS: &str = "--- details (shortened in older turns) ---";
+
 /// Shorten the file content of older tool calls (the files hold it); the newest `keep_last` calls stay complete.
 pub fn compact_history(msgs: &[J], keep_last: usize) -> Vec<J> {
     let idx: Vec<usize> = msgs
@@ -410,6 +419,16 @@ pub fn compact_history(msgs: &[J], keep_last: usize) -> Vec<J> {
         .map(|(i, _)| i)
         .collect();
     let mut out = msgs.to_vec();
+    // tool results may mark where their bulky part starts (TOOL_DETAILS): older results keep only what comes before it
+    let results: Vec<usize> = msgs.iter().enumerate().filter(|(_, m)| m["role"] == "tool").map(|(i, _)| i).collect();
+    for &i in &results[..results.len().saturating_sub(keep_last)] {
+        if let Some(J::String(c)) = out[i].get("content") {
+            if let Some(cut) = c.find(TOOL_DETAILS) {
+                let v = format!("{}[older result shortened to save context: the full text is no longer shown]", &c[..cut]);
+                out[i]["content"] = J::String(v);
+            }
+        }
+    }
     let upto = idx.len().saturating_sub(keep_last);
     let shorten = |s: &str| format!("{} ... [{} characters, saved by the tool]", char_prefix(s, 120), s.chars().count());
     for &i in &idx[..if keep_last > 0 { upto } else { idx.len() }] {
@@ -475,6 +494,29 @@ pub fn resolve_tool(tools: &[(String, Vec<String>)], name: &str, args: &J) -> (S
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn flat_tool_call_arguments() {
+        let c = parse_tool_calls("<tool_call>\n{\"name\": \"open\", \"target\": \"S2\", \"why\": \"w\"}\n</tool_call>");
+        assert_eq!(c[0].0, "open");
+        assert_eq!(c[0].1, json!({"target": "S2", "why": "w"}));
+        let c = parse_tool_calls("<tool_call>{\"name\": \"web\", \"parameters\": {\"action\": \"status\"}}</tool_call>");
+        assert_eq!(c[0].1, json!({"action": "status"}));
+    }
+
+    #[test]
+    fn older_tool_results_cut_at_details() {
+        let page = format!("[P1] Title\nURL: x\n{TOOL_DETAILS}\nlong page text");
+        let msgs = vec![
+            json!({"role": "user", "content": "q"}),
+            json!({"role": "tool", "content": page.clone()}),
+            json!({"role": "tool", "content": page.clone()}),
+        ];
+        let out = compact_history(&msgs, 1);
+        let a = out[1]["content"].as_str().unwrap();
+        assert!(a.starts_with("[P1] Title\nURL: x\n[older result shortened") && !a.contains("long page text"), "{a}");
+        assert_eq!(out[2]["content"].as_str().unwrap(), page);
+    }
     #[test]
     fn think_and_calls() {
         let r = parse_reply("<think>\nplan\n</think>\n\nOK <tool_call>\n{\"name\": \"calculator\", \"arguments\": {\"expression\": \"2+2\"}}\n</tool_call>");

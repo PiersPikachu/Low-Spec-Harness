@@ -1,5 +1,6 @@
 //! Skills: instruction snippets in data/skills/*.md (front matter + body). '/name' at the start of a message inserts one;
-//! 'always_on' adds it to the system prompt; 'applies_when: tools' skills are added whenever tools are on.
+//! 'always_on' adds it to the system prompt; 'applies_when: tools' skills are added whenever tools are on,
+//! 'applies_when: tool:NAME' skills whenever the tool NAME is on.
 
 use regex::Regex;
 use std::path::{Path, PathBuf};
@@ -128,8 +129,11 @@ pub fn tool_skill_text(dir: &Path, tools: &[serde_json::Value], harmony: bool) -
     }
     let fmt = Regex::new(r"^##\s*format:\s*(\w+)").unwrap();
     let mut out = Vec::new();
+    let names: Vec<&str> = tools.iter().filter_map(|t| t["function"]["name"].as_str()).collect();
     for sk in load(dir) {
-        if sk.applies_when != "tools" {
+        // 'tools': whenever any tool is on; 'tool:NAME': whenever that tool is on (a plugin's own instructions)
+        let on_for = sk.applies_when.strip_prefix("tool:").map(str::trim);
+        if sk.applies_when != "tools" && !on_for.map_or(false, |n| names.contains(&n)) {
             continue;
         }
         let body = sk.body.replace("{tools}", &lines.join("\n"));
@@ -150,4 +154,21 @@ pub fn tool_skill_text(dir: &Path, tools: &[serde_json::Value], harmony: bool) -
         out.push(keep.join("\n").trim().to_string());
     }
     out.join("\n\n")
+}
+
+#[cfg(test)]
+mod tool_skill_tests {
+    #[test]
+    fn tool_specific_skill_only_with_its_tool() {
+        let d = std::env::temp_dir().join(format!("cube_sk_{}", std::process::id()));
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(d.join("a.md"), "---\nname: a\napplies_when: tools\n---\nALL TOOLS {tools}").unwrap();
+        std::fs::write(d.join("w.md"), "---\nname: w\napplies_when: tool:web\n---\nWEB ONLY").unwrap();
+        let t = |n: &str| serde_json::json!({"type": "function", "function": {"name": n, "description": "d", "parameters": {}}});
+        let calc = super::tool_skill_text(&d, &[t("calculator")], false);
+        assert!(calc.contains("ALL TOOLS") && !calc.contains("WEB ONLY"));
+        let web = super::tool_skill_text(&d, &[t("calculator"), t("web")], false);
+        assert!(web.contains("ALL TOOLS") && web.contains("WEB ONLY"));
+        let _ = std::fs::remove_dir_all(&d);
+    }
 }

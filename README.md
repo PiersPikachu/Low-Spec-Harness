@@ -7,6 +7,7 @@ streaming weights from the SSD, with a native window (egui) for chat, tools, art
 build.bat          build everything (cargo) + unit tests
 run.bat            start the window (target\release\cube-harness.exe)
 gpu_check.bat V    GPU engine vs CPU engine on a dense vault
+web_check.bat      live test of the web plugin: search, read, loop protection, unsafe-site blocking
 bench_gptoss.bat V gpt-oss on real chat replies: output layer on the CPU vs on the GPU (both with RAM+VRAM expert tiers)
 target\release\cube.exe ...   command line (below)
 data\              everything the harness writes (created on first run)
@@ -53,6 +54,24 @@ cube gpu-check <vault>
 * **Output layer on the GPU** (gpt-oss, with the expert tiers): its pinned RAM goes to the expert cache, so the number of
   cached experts stays about the same (345 RAM + 371 VRAM -> 431 RAM + 309 VRAM). Real chat, warm: 4.65 -> 5.92 tok/s;
   gpu-check logits relL2 3.7e-7, greedy 16/16. Host stand-in (`--dev-head-cpu`) bit-identical to `nvme_engine_u` on every test vault.
+
+## Web plugin and skill
+
+`data/plugins/web.py` (tool `web`) and `data/skills/web-research.md` are installed by the app (and updated with it,
+unless you edit them). Turn the tool on in the Plugins tab; the skill is added automatically while it is on.
+
+* `search` -> results S1.. (DuckDuckGo HTML, lite fallback; or SearXNG / Brave API from `data/plugins/web_config.json`),
+  `open` (target S#/L#/URL + a required `why`) -> page P# with its links L#, `more` -> another part of a page read,
+  `status` -> what was read.
+* Safety: http/https only, no credentials in URLs, no private / local / reserved addresses (checked again after DNS
+  and after every redirect), no unusual ports or raw-IP hosts, look-alike (mixed-script) domains blocked, no file
+  downloads (by extension, content type and Content-Disposition), URLhaus malware and phishing-filter domain lists
+  (refreshed daily), your own `web_blocklist.txt`. Page text is fenced as data, not instructions.
+* No loops: a research session keeps a ledger - pages read are never fetched again (normalized URLs: www, tracking
+  parameters, fragments, slashes), mirrors with identical text are recognised, reworded repeat searches return the
+  earlier results, and searches / pages / pages per site / 'more' have budgets; repeated revisits tell the model to answer.
+* Context: older web results keep only their header and matched passages (`TOOL_DETAILS` marker in the harness).
+* With the web tool on, a reply may make at least 12 tool calls.
 
 ## Not ported yet
 
