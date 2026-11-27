@@ -89,6 +89,8 @@ pub struct Engine {
     pub timing: Timing,
     /// layers [0, n) run by another device (split mode)
     pub prefix: Option<Box<dyn crate::backend::LayerPrefix>>,
+    /// the output layer runs on another device
+    pub head: Option<Box<dyn crate::backend::HeadDevice>>,
 }
 
 impl Engine {
@@ -146,6 +148,7 @@ impl Engine {
             dump_hidden: None,
             timing: Timing::default(),
             prefix: None,
+            head: None,
         })
     }
 
@@ -192,7 +195,8 @@ impl Engine {
             }
             None => 0,
         };
-        let ns = m.layers + usize::from(logits > 0);
+        // the output layer's stream is read only when it runs here
+        let ns = m.layers + usize::from(logits > 0 && self.head.is_none());
         let sid = |i: usize| if i < m.layers { i } else { m.lm_head_stream };
         let next_of = |i: usize, st: &StreamStore| -> Option<usize> {
             ((i + 1)..ns).map(sid).find(|&s| !st.is_pinned(s)).or_else(|| (l0..m.layers).find(|&s| !st.is_pinned(s)))
@@ -215,27 +219,38 @@ impl Engine {
         if logits > 0 {
             let t0 = Instant::now();
             let nx = next_of(ns - 1, &self.store);
-            let (blob, bytes, rms) = self.store.get(m.lm_head_stream, nx)?;
-            self.timing.wait_ms += t0.elapsed().as_secs_f64() * 1e3;
-            self.timing.read_ms += rms;
-            self.timing.bytes_read += bytes;
-            let t1 = Instant::now();
-            let subs = stream::sub_blobs(&blob)?;
-            let head = self.mat(subs[0])?;
             let fnrm = self.vault.final_norm();
             let eps = m.rms_eps as f32;
-            if logits == 2 {
-                let mut xn = vec![0f32; n * hid];
-                for t in 0..n {
-                    kernels::rmsnorm(&mut xn[t * hid..(t + 1) * hid], &h[t * hid..(t + 1) * hid], fnrm, eps);
+            let nl = if logits == 2 { n } else { 1 };
+            let mut xn = vec![0f32; nl * hid];
+            for t in 0..nl {
+                let src = n - nl + t;
+                kernels::rmsnorm(&mut xn[t * hid..(t + 1) * hid], &h[src * hid..(src + 1) * hid], fnrm, eps);
+            }
+            let mut t1 = Instant::now();
+            if let Some(hd) = self.head.as_mut() {
+                if logits == 2 {
+                    self.all_logits.resize(n * m.vocab, 0.0);
+                    hd.logits(&xn, n, &mut self.all_logits)?;
+                    self.logits.copy_from_slice(&self.all_logits[(n - 1) * m.vocab..]);
+                } else {
+                    hd.logits(&xn, 1, &mut self.logits)?;
                 }
-                self.all_logits.resize(n * m.vocab, 0.0);
-                head.mv(&xn, &mut self.all_logits, n);
-                self.logits.copy_from_slice(&self.all_logits[(n - 1) * m.vocab..]);
             } else {
-                let mut xn = vec![0f32; hid];
-                kernels::rmsnorm(&mut xn, &h[(n - 1) * hid..n * hid], fnrm, eps);
-                head.mv(&xn, &mut self.logits, 1);
+                let (blob, bytes, rms) = self.store.get(m.lm_head_stream, nx)?;
+                self.timing.wait_ms += t0.elapsed().as_secs_f64() * 1e3;
+                self.timing.read_ms += rms;
+                self.timing.bytes_read += bytes;
+                t1 = Instant::now();
+                let subs = stream::sub_blobs(&blob)?;
+                let head = self.mat(subs[0])?;
+                if logits == 2 {
+                    self.all_logits.resize(n * m.vocab, 0.0);
+                    head.mv(&xn, &mut self.all_logits, n);
+                    self.logits.copy_from_slice(&self.all_logits[(n - 1) * m.vocab..]);
+                } else {
+                    head.mv(&xn, &mut self.logits, 1);
+                }
             }
             self.timing.lm_ms = t1.elapsed().as_secs_f64() * 1e3;
             self.timing.comp_ms += self.timing.lm_ms;
@@ -724,6 +739,34 @@ impl crate::store::ExpertDevice for HostExperts {
     }
 }
 
+/// Stand-in output-layer device: the lm_head stream in host memory, computed with the CPU kernels (tests, `--dev-head-cpu`).
+pub struct HostHead {
+    blob: Vec<u8>,
+    codec: Codec,
+}
+
+impl HostHead {
+    pub fn new(v: &Vault) -> Result<HostHead> {
+        let m = v.meta();
+        Ok(HostHead { blob: v.read_stream(m.lm_head_stream)?, codec: m.codec })
+    }
+}
+
+impl crate::backend::HeadDevice for HostHead {
+    fn logits(&mut self, xn: &[f32], n: usize, out: &mut [f32]) -> Result<()> {
+        let subs = stream::sub_blobs(&self.blob)?;
+        let w = match self.codec {
+            Codec::Huff4 => Mat::Huff(cube_vault::huff4::Huff4::parse(subs[0])?),
+            Codec::Rans4 => Mat::Rans(cube_vault::rans4::Rans4::parse(subs[0])?),
+        };
+        w.mv(xn, out, n);
+        Ok(())
+    }
+    fn describe(&self) -> String {
+        "output layer in host memory (test device)".into()
+    }
+}
+
 /// cos/sin tables (ctx x head_dim/2) for the model's rotary embedding, computed like the C engine.
 pub fn rope_tables(m: &ModelMeta, rope_inv: &[f32], ctx: usize) -> Result<(Vec<f32>, Vec<f32>)> {
     let hd = m.head_dim;
@@ -987,6 +1030,20 @@ impl Engine {
     }
 
     /// Run layers `[0, n)` elsewhere (the GPU) from now on; their pinned streams are released.
+    /// Compute the output layer elsewhere (the GPU) from now on. Its pinned RAM goes to the expert cache (MoE models).
+    pub fn attach_head(&mut self, d: Box<dyn crate::backend::HeadDevice>) {
+        let s = self.m.lm_head_stream;
+        if s != self.m.embed_stream && self.store.is_pinned(s) {
+            let before = self.store.pinned_bytes();
+            self.store.unpin(s);
+            let freed = before - self.store.pinned_bytes();
+            if let Some(ec) = self.experts.as_mut() {
+                ec.grow(freed);
+            }
+        }
+        self.head = Some(d);
+    }
+
     pub fn attach_prefix(&mut self, p: Box<dyn crate::backend::LayerPrefix>) {
         for l in 0..p.layers().min(self.m.layers) {
             self.store.unpin(l);

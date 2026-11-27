@@ -114,7 +114,7 @@ pub fn defaults() -> Map<String, J> {
         "temp": 0.7, "top_p": 0.8, "top_k": 20, "greedy": false, "seed": null,
         "draft": "auto", "k": 8, "think": false, "system": "",
         "model_dirs": [], "enabled_plugins": ["calculator", "clock", "artifact"], "max_tool_rounds": 4,
-        "resident_mb": 0, "threads": 0
+        "resident_mb": 0, "threads": 0, "cpu_head": false
     });
     v.as_object().unwrap().clone()
 }

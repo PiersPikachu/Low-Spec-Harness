@@ -7,7 +7,7 @@ streaming weights from the SSD, with a native window (egui) for chat, tools, art
 build.bat          build everything (cargo) + unit tests
 run.bat            start the window (target\release\cube-harness.exe)
 gpu_check.bat V    GPU engine vs CPU engine on a dense vault
-bench_gptoss.bat V gpt-oss on real chat replies: CPU-only vs RAM+VRAM expert tiers
+bench_gptoss.bat V gpt-oss on real chat replies: output layer on the CPU vs on the GPU (both with RAM+VRAM expert tiers)
 target\release\cube.exe ...   command line (below)
 data\              everything the harness writes (created on first run)
 ```
@@ -49,6 +49,9 @@ cube gpu-check <vault>
 * **gpt-oss VRAM expert tier**: experts evicted from the RAM cache drop into VRAM (stored as in the vault, MXF4/MXF2) and run there.
   Tiering logic checked without a GPU (`--dev-experts-cpu N`: same tiers, host memory): serve output bit-identical to
   `nvme_engine_u` with 3 and 1000 device slots. On the RTX 3060 (gpt-oss-20b, every expert from the device tier): prompt logits relL2 3.1e-7, greedy 16/16 identical.
+  Real chat (`cube chat-bench`, warm): 3.64 tok/s CPU-only -> 4.81 tok/s with the VRAM tier (cache hits 85% -> 99%).
+* **Output layer on the GPU** (gpt-oss, with the expert tiers): its pinned RAM goes to the expert cache, so the number of
+  cached experts stays the same. Host stand-in (`--dev-head-cpu`) bit-identical to `nvme_engine_u` on every test vault.
 
 ## Not ported yet
 

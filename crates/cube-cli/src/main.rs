@@ -20,7 +20,7 @@ const USAGE: &str = "usage:
                                         talk to a model (with tools); without --prompt reads lines from stdin
   cube gpu-check <vault> [--ctx N] [--tokens N] [--layers N]   GPU engine vs CPU engine: logits, hidden states, greedy text, speed
   cube bench <vault> [--prompt N] [--tokens N] [serve options]   greedy prefill + decode timing (synthetic tokens)
-  cube chat-bench <vault> [--mode auto|cpu] [--rounds N] [--max-new N] [--threads N]
+  cube chat-bench <vault> [--mode auto|cpu] [--rounds N] [--max-new N] [--threads N] [--cpu-head]
                                         real chat replies in one session, as the app runs them: tok/s per reply, expert tier hits";
 
 fn main() {
@@ -244,6 +244,7 @@ fn engine_opts(a: &[String], from: usize, extra: &mut Vec<(String, String)>) -> 
             "--cached" | "--gpu" => {}
             "--gpu-layers" => { i += 1; }
             "--io-threads" | "--io-chunk" | "--log-detail" | "--vram-mb" | "--dev-experts-cpu" => { i += 1; }
+            "--cpu-head" | "--dev-head-cpu" => {}
             "--prefetch" => { if a.get(i + 1).map_or(false, |x| x.starts_with(|c: char| c.is_ascii_digit())) { i += 1; } }
             "--prompt" | "--tokens" => { extra.push((a[i].clone(), val(i)?.clone())); i += 1; }
             x => bail!("unknown option {x}"),
@@ -262,6 +263,10 @@ fn engine_opts(a: &[String], from: usize, extra: &mut Vec<(String, String)>) -> 
 /// gpt-oss: put a device expert tier under the RAM cache. `--gpu` (VRAM, budget `--vram-mb` or free VRAM - 600 MB) or
 /// `--dev-experts-cpu N` (N slots in host memory, the same tiering without a GPU, for tests). Returns a description.
 fn attach_dev_experts(a: &[String], e: &mut cube_engine::Engine) -> Result<Option<String>> {
+    if a.iter().any(|x| x == "--dev-head-cpu") {
+        let h = cube_engine::model::HostHead::new(&e.vault)?;
+        e.attach_head(Box::new(h));
+    }
     if e.m.arch != cube_vault::meta::Arch::Gptoss {
         return Ok(None);
     }
@@ -273,12 +278,8 @@ fn attach_dev_experts(a: &[String], e: &mut cube_engine::Engine) -> Result<Optio
         return Ok(Some(s));
     }
     if a.iter().any(|x| x == "--gpu") {
-        let free = cube_gpu::vram().map_or(0u64, |v| v.0 as u64);
-        let budget = num("--vram-mb").map_or(free.saturating_sub(600_000_000), |mb| mb * 1_000_000);
-        let d = cube_gpu::GpuExperts::open(&e.vault, budget)?;
-        let s = cube_engine::store::ExpertDevice::describe(&d);
-        e.attach_expert_device(Box::new(d));
-        return Ok(Some(s));
+        let budget = num("--vram-mb").map(|mb| mb * 1_000_000);
+        return Ok(Some(cube_gpu::attach_moe_tiers(e, !a.iter().any(|x| x == "--cpu-head"), 600_000_000, budget)?));
     }
     Ok(None)
 }
@@ -520,13 +521,7 @@ fn gpu_check_experts(a: &[String], vdir: &str, prompt: &[u32], o: cube_engine::O
     let mut t = cube_engine::Engine::open(Vault::open(vdir)?, cube_engine::Options { expert_cache_mb: 1.0, ..o })?;
     let desc = match attach_dev_experts(a, &mut t)? {
         Some(d) => d,
-        None => {
-            let free = cube_gpu::vram().map_or(0u64, |v| v.0 as u64);
-            let d = cube_gpu::GpuExperts::open(&t.vault, free.saturating_sub(600_000_000))?;
-            let s = cube_engine::store::ExpertDevice::describe(&d);
-            t.attach_expert_device(Box::new(d));
-            s
-        }
+        None => cube_gpu::attach_moe_tiers(&mut t, !a.iter().any(|x| x == "--cpu-head"), 600_000_000, None)?,
     };
     println!("expert tier: {desc}; RAM cache forced to ~1 MB so evicted experts run from the device tier");
     // pass 1 fills the tiers, pass 2 runs (mostly) from the device tier
@@ -587,6 +582,11 @@ fn chat_bench(a: &[String]) -> Result<()> {
             "--rounds" => rounds = v.parse()?,
             "--max-new" => cfg.set("max_new", serde_json::json!(v.parse::<i64>()?)),
             "--threads" => cfg.set("threads", serde_json::json!(v.parse::<i64>()?)),
+            "--cpu-head" => {
+                cfg.set("cpu_head", serde_json::json!(true));
+                i += 1;
+                continue;
+            }
             x => bail!("unknown option {x}"),
         }
         i += 2;

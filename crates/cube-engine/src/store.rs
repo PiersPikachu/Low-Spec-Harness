@@ -222,6 +222,12 @@ impl ExpertCache {
             read_ms: 0.0,
         }
     }
+    /// `bytes` more RAM for the cache
+    pub fn grow(&mut self, bytes: u64) {
+        let xsz = self.entries.iter().map(|e| e.padded).max().unwrap_or(1).max(1);
+        self.cap = (self.cap + (bytes / xsz) as usize).min(self.entries.len());
+    }
+
     pub fn capacity(&self) -> usize {
         self.cap
     }

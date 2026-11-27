@@ -33,6 +33,12 @@ pub trait Backend: Send {
     }
 }
 
+/// The output layer computed on another device: `out` (n x vocab) = lm_head(xn), `xn` already final-normed (n x hidden).
+pub trait HeadDevice: Send {
+    fn logits(&mut self, xn: &[f32], n: usize, out: &mut [f32]) -> Result<()>;
+    fn describe(&self) -> String;
+}
+
 /// Layers `[0, layers())` of a model run on another device (split mode): hidden states in, hidden states out.
 pub trait LayerPrefix: Send {
     fn layers(&self) -> usize;

@@ -561,18 +561,14 @@ pub fn open_backend(vault: Vault, o: Options, cfg: &Config, how_cpu: String) -> 
     }
     anyhow::ensure!(mode != "gpu" || gpu.is_some(), "mode 'gpu': no CUDA device found");
     let gptoss = vault.meta().arch == cube_vault::meta::Arch::Gptoss;
-    if let Some(g) = gpu.as_ref().filter(|_| gptoss) {
-        // experts evicted from the RAM cache drop into VRAM and are computed there instead of being re-read from disk
-        let budget = free.saturating_sub(600_000_000);
-        match cube_gpu::GpuExperts::open(&vault, budget) {
-            Ok(d) => {
-                let what = d.describe_short();
-                let mut e = Engine::open(vault, o)?;
-                e.attach_expert_device(Box::new(d));
-                return Ok((Box::new(e), format!("{how_cpu}; RAM + VRAM expert tiers ({what} on {})", g.name)));
-            }
+    if gpu.is_some() && gptoss {
+        // the output layer, then experts evicted from the RAM cache, in VRAM: computed there instead of on the CPU / re-read from disk
+        let mut e = Engine::open(vault, o)?;
+        match cube_gpu::attach_moe_tiers(&mut e, !cfg.bool("cpu_head"), 600_000_000, None) {
+            Ok(what) => return Ok((Box::new(e), format!("{how_cpu}; RAM + VRAM expert tiers ({what})"))),
             Err(err) => {
                 anyhow::ensure!(mode != "gpu", "mode 'gpu': {err:#}");
+                return Ok((Box::new(e), format!("{how_cpu} (VRAM expert tier unavailable: {err:#})")));
             }
         }
     }

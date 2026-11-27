@@ -272,6 +272,39 @@ macro_rules! args {
     }};
 }
 
+/// Launch `name` on the current context; arguments are u64 device pointers, i32 or f32 values (see `args!`).
+fn launch_k(k: &Kernels, name: &str, grid: u32, block: u32, a: Vec<Box<dyn std::any::Any>>) -> Result<()> {
+    let f = *k.f.get(name).context("kernel")?;
+    // kernel parameters: pointers to each argument's value
+    let mut ptrs: Vec<*mut c_void> = Vec::with_capacity(a.len());
+    let mut a = a;
+    for x in a.iter_mut() {
+        let p: *mut c_void = if let Some(v) = x.downcast_mut::<u64>() {
+            v as *mut u64 as *mut c_void
+        } else if let Some(v) = x.downcast_mut::<i32>() {
+            v as *mut i32 as *mut c_void
+        } else if let Some(v) = x.downcast_mut::<f32>() {
+            v as *mut f32 as *mut c_void
+        } else {
+            bail!("kernel {name}: unsupported argument type");
+        };
+        ptrs.push(p);
+    }
+    unsafe { cu::launch_kernel(f, (grid.max(1), 1, 1), (block, 1, 1), 0, std::ptr::null_mut(), &mut ptrs) }.map_err(|e| anyhow!("kernel {name}: {e:?}"))
+}
+
+/// Y (n x rows) (+)= X (n x cols) W^T + bias, n <= NBMAX
+fn mvb_k(k: &Kernels, w: &DMat, x: u64, y: u64, bias: u64, acc: bool, n: usize) -> Result<()> {
+    let nb = if n == 1 { 1 } else if n <= 4 { 4 } else { 16 };
+    if w.r > 0 {
+        let chains = 4 * ((w.rows + w.r - 1) / w.r) as u32;
+        launch_k(k, &format!("mvb_rans{nb}"), chains.div_ceil(128), 128, args![w.es, w.off, w.sm, w.tab, w.rows, w.cols, w.r, x, y, bias, i32::from(acc), n as i32])
+    } else {
+        launch_k(k, &format!("mvb_huff{nb}"), (w.rows as u32).div_ceil(16), 64, args![w.es, w.off, w.sm, w.tab, w.rows, w.cols, x, y, bias, i32::from(acc), n as i32])
+    }
+}
+
+
 impl GpuDense {
     /// `layers`: None = the whole model (embedding, all layers, lm_head); Some(n) = only layers [0, n).
     pub fn open(v: &Vault, ctx: usize, layers: Option<usize>) -> Result<GpuDense> {
@@ -357,34 +390,12 @@ impl GpuDense {
     }
 
     fn launch(&self, name: &str, grid: u32, block: u32, a: Vec<Box<dyn std::any::Any>>) -> Result<()> {
-        let f = *self.k.f.get(name).context("kernel")?;
-        // kernel parameters: pointers to each argument's value (u64 device pointers, i32, f32)
-        let mut ptrs: Vec<*mut c_void> = Vec::with_capacity(a.len());
-        let mut a = a;
-        for x in a.iter_mut() {
-            let p: *mut c_void = if let Some(v) = x.downcast_mut::<u64>() {
-                v as *mut u64 as *mut c_void
-            } else if let Some(v) = x.downcast_mut::<i32>() {
-                v as *mut i32 as *mut c_void
-            } else if let Some(v) = x.downcast_mut::<f32>() {
-                v as *mut f32 as *mut c_void
-            } else {
-                bail!("kernel {name}: unsupported argument type");
-            };
-            ptrs.push(p);
-        }
-        unsafe { cu::launch_kernel(f, (grid.max(1), 1, 1), (block, 1, 1), 0, std::ptr::null_mut(), &mut ptrs) }.map_err(|e| anyhow!("kernel {name}: {e:?}"))
+        launch_k(&self.k, name, grid, block, a)
     }
 
     /// Y (n x rows) (+)= X (n x cols) W^T + bias
     fn mvb(&self, w: &DMat, x: u64, y: u64, bias: u64, acc: bool, n: usize) -> Result<()> {
-        let nb = if n == 1 { 1 } else if n <= 4 { 4 } else { 16 };
-        if w.r > 0 {
-            let chains = 4 * ((w.rows + w.r - 1) / w.r) as u32;
-            self.launch(&format!("mvb_rans{nb}"), chains.div_ceil(128), 128, args![w.es, w.off, w.sm, w.tab, w.rows, w.cols, w.r, x, y, bias, i32::from(acc), n as i32])
-        } else {
-            self.launch(&format!("mvb_huff{nb}"), (w.rows as u32).div_ceil(16), 64, args![w.es, w.off, w.sm, w.tab, w.rows, w.cols, x, y, bias, i32::from(acc), n as i32])
-        }
+        mvb_k(&self.k, w, x, y, bias, acc, n)
     }
 
     fn rl(&self, l: usize, o: Option<usize>) -> u64 {
@@ -654,22 +665,7 @@ impl GpuExperts {
     }
 
     fn launch(&self, name: &str, grid: u32, block: u32, a: Vec<Box<dyn std::any::Any>>) -> Result<()> {
-        let f = *self.k.f.get(name).context("kernel")?;
-        let mut a = a;
-        let mut ptrs: Vec<*mut c_void> = Vec::with_capacity(a.len());
-        for x in a.iter_mut() {
-            let p: *mut c_void = if let Some(v) = x.downcast_mut::<u64>() {
-                v as *mut u64 as *mut c_void
-            } else if let Some(v) = x.downcast_mut::<i32>() {
-                v as *mut i32 as *mut c_void
-            } else if let Some(v) = x.downcast_mut::<f32>() {
-                v as *mut f32 as *mut c_void
-            } else {
-                bail!("kernel {name}: unsupported argument type");
-            };
-            ptrs.push(p);
-        }
-        unsafe { cu::launch_kernel(f, (grid.max(1), 1, 1), (block, 1, 1), 0, std::ptr::null_mut(), &mut ptrs) }.map_err(|e| anyhow!("kernel {name}: {e:?}"))
+        launch_k(&self.k, name, grid, block, a)
     }
 }
 
@@ -736,4 +732,84 @@ impl cube_engine::store::ExpertDevice for GpuExperts {
     fn describe(&self) -> String {
         format!("{} expert slots in VRAM ({:.0} MB) on {}", self.slots.len(), self.mem.bytes as f64 / 1e6, self.gpu.name)
     }
+}
+
+// ---------------------------------------------------------------- output layer in VRAM
+
+/// The output layer (lm_head, compressed as in the vault) in VRAM: logits for CPU-side hidden states.
+pub struct GpuHead {
+    gpu: Arc<Gpu>,
+    k: Arc<Kernels>,
+    mem: Mem,
+    w: DMat,
+    hid: usize,
+    vocab: usize,
+    xb: u64,
+    yb: u64,
+}
+
+unsafe impl Send for GpuHead {}
+
+impl GpuHead {
+    /// VRAM this needs: the lm_head stream, its decode table and NBMAX rows of input and logits.
+    pub fn vram_needed(v: &Vault) -> u64 {
+        let m = v.meta();
+        v.stream(m.lm_head_stream).padded + 16384 + 4 * NBMAX as u64 * (m.hidden + m.vocab) as u64
+    }
+
+    pub fn open(v: &Vault) -> Result<GpuHead> {
+        let g = gpu().context("no CUDA device")?;
+        g.ctx.bind_to_thread().map_err(|e| anyhow!("{e:?}"))?;
+        let k = kernels(&g)?;
+        let m = v.meta();
+        let mut mem = Mem { ptrs: Vec::new(), bytes: 0 };
+        let w = *upload_stream(&mut mem, v, m.lm_head_stream, m.codec)?.first().context("lm_head stream has no matrix")?;
+        ensure!(w.rows as usize == m.vocab && w.cols as usize == m.hidden, "lm_head is {}x{}, expected {}x{}", w.rows, w.cols, m.vocab, m.hidden);
+        let xb = mem.alloc(4 * NBMAX * m.hidden)?;
+        let yb = mem.alloc(4 * NBMAX * m.vocab)?;
+        Ok(GpuHead { gpu: g, k, mem, w, hid: m.hidden, vocab: m.vocab, xb, yb })
+    }
+}
+
+impl cube_engine::backend::HeadDevice for GpuHead {
+    fn logits(&mut self, xn: &[f32], n: usize, out: &mut [f32]) -> Result<()> {
+        self.gpu.ctx.bind_to_thread().map_err(|e| anyhow!("{e:?}"))?;
+        let (hid, vocab) = (self.hid, self.vocab);
+        let mut t = 0;
+        while t < n {
+            let c = (n - t).min(NBMAX);
+            unsafe { cu::memcpy_htod_sync(self.xb, &xn[t * hid..(t + c) * hid]) }.map_err(|e| anyhow!("{e:?}"))?;
+            mvb_k(&self.k, &self.w, self.xb, self.yb, 0, false, c)?;
+            unsafe { cu::memcpy_dtoh_sync(&mut out[t * vocab..(t + c) * vocab], self.yb) }.map_err(|e| anyhow!("{e:?}"))?;
+            t += c;
+        }
+        Ok(())
+    }
+    fn describe(&self) -> String {
+        format!("output layer in VRAM ({:.0} MB) on {}", self.mem.bytes as f64 / 1e6, self.gpu.name)
+    }
+}
+
+/// gpt-oss on the GPU next to the CPU engine: the output layer (unless `head` is false), then as many expert slots as
+/// fit in what is left of free VRAM minus `reserve`. Returns a description.
+pub fn attach_moe_tiers(e: &mut cube_engine::Engine, head: bool, reserve: u64, budget: Option<u64>) -> Result<String> {
+    let g = gpu().context("no CUDA device")?;
+    let mut parts = Vec::new();
+    if head {
+        let free = vram().map_or(0u64, |v| v.0 as u64);
+        if GpuHead::vram_needed(&e.vault) + reserve < free {
+            match GpuHead::open(&e.vault) {
+                Ok(h) => {
+                    parts.push(format!("output layer ({:.0} MB)", h.mem.bytes as f64 / 1e6));
+                    e.attach_head(Box::new(h));
+                }
+                Err(err) => parts.push(format!("output layer on the CPU ({err:#})")),
+            }
+        }
+    }
+    let free = vram().map_or(0u64, |v| v.0 as u64);
+    let d = GpuExperts::open(&e.vault, budget.unwrap_or(free.saturating_sub(reserve)))?;
+    parts.push(d.describe_short());
+    e.attach_expert_device(Box::new(d));
+    Ok(format!("{} in VRAM on {}", parts.join(" + "), g.name))
 }
